@@ -7,7 +7,7 @@ import {
   detectFormat,
   extractNames,
   parseIcoMoon,
-} from "../src/icon-utils.js";
+} from "../src/features/icons/icon-utils.js";
 
 test("detectFormat: recognizes IcoMoon V1", () => {
   const input = {
