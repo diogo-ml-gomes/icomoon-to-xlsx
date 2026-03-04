@@ -13,35 +13,67 @@
         <header class="card card-header">
           <div class="row row-between row-no-wrap">
             <h1>IcoMoon JSON -> CSV / XLSX</h1>
-            <button id="btnThemeToggle" type="button" class="btn-ghost btn-theme">Tema: Claro</button>
+            <label class="theme-switch" for="themeToggleInput" title="Toggle theme">
+              <input
+                id="themeToggleInput"
+                type="checkbox"
+                role="switch"
+                aria-label="Toggle light or dark theme"
+                aria-checked="false"
+              />
+              <span class="theme-switch-ui" aria-hidden="true">
+                <span class="theme-icon theme-icon-sun">☀</span>
+                <span class="theme-icon theme-icon-moon">☾</span>
+                <span class="theme-switch-thumb"></span>
+              </span>
+            </label>
           </div>
-          <p class="muted">Suporta IcoMoon <strong>V1</strong> e <strong>V2</strong>.</p>
+          <p class="muted">Supports IcoMoon <strong>V1</strong> and <strong>V2</strong>.</p>
         </header>
 
-        <div class="card card-drop">
+        <div class="card card-meta">
           <div class="row">
-            <div class="drop" id="dropZone" role="button" tabindex="0" aria-label="Arrastar ou escolher ficheiro JSON">
-              <div id="dropEmptyState">
-                <strong>Arrasta o JSON aqui</strong> ou clica para escolher
-                <div class="muted">Ex: <code>selection.json</code> (V1) / export (V2)</div>
+            <span id="fileBadge" class="badge badge-soft">No file</span>
+            <span id="formatBadge" class="badge">-</span>
+            <span id="statsBadge" class="badge">-</span>
+          </div>
+        </div>
+
+        <div class="card card-drop">
+          <div id="jsonAccordion" class="mobile-accordion mobile-accordion-json">
+            <button
+              id="jsonAccordionToggle"
+              type="button"
+              class="mobile-accordion-toggle"
+              aria-expanded="true"
+              aria-controls="jsonAccordionContent"
+            >
+              <span>JSON Preview</span>
+              <span class="mobile-accordion-chevron" aria-hidden="true">▾</span>
+            </button>
+
+            <div id="jsonAccordionContent" class="mobile-accordion-content">
+              <div class="row">
+                <div class="drop" id="dropZone" role="button" tabindex="0" aria-label="Drag or choose JSON file">
+                  <button id="btnRemoveJson" type="button" class="btn-ghost btn-remove-json-preview" hidden disabled>
+                    Remove JSON
+                  </button>
+                  <div id="dropEmptyState">
+                    <strong>Drag JSON here</strong> or click to choose
+                    <div class="muted">e.g. <code>selection.json</code> (V1) / export (V2)</div>
+                  </div>
+                  <div id="dropJsonPreview" class="drop-json-preview" hidden></div>
+                </div>
+                <input id="fileInput" type="file" accept=".json,application/json" hidden />
               </div>
-              <div id="dropJsonPreview" class="drop-json-preview" hidden></div>
             </div>
-            <input id="fileInput" type="file" accept=".json,application/json" hidden />
           </div>
         </div>
 
         <div class="card card-details">
-          <div class="row mt-12">
-            <span id="fileBadge" class="badge badge-soft">Sem ficheiro</span>
-            <span id="formatBadge" class="badge">-</span>
-            <span id="statsBadge" class="badge">-</span>
-          </div>
-
-          <div class="row mt-12">
-            <button id="btnRemoveJson" type="button" class="btn-ghost" disabled>Remover JSON</button>
+          <div class="row">
             <label class="row row-tight">
-              <span class="muted">Formato</span>
+              <span class="muted">Format</span>
               <select id="downloadFormat">
                 <option value="xlsx" selected>XLSX</option>
                 <option value="csv">CSV</option>
@@ -49,54 +81,87 @@
             </label>
             <button id="btnDownload" type="button" class="btn-primary" disabled>Download</button>
           </div>
-
-          <div id="status" class="muted mt-10">A espera do ficheiro...</div>
-          <div id="errors" class="error mt-8"></div>
         </div>
       </section>
 
       <section class="panel panel-right">
         <div class="card card-preview">
-          <div class="row row-between">
-            <div class="row row-tight">
-              <strong>Preview</strong>
-              <span class="muted" id="previewMeta">-</span>
+          <div id="previewAccordion" class="mobile-accordion mobile-accordion-preview">
+            <button
+              id="previewAccordionToggle"
+              type="button"
+              class="mobile-accordion-toggle"
+              aria-expanded="true"
+              aria-controls="previewAccordionContent"
+            >
+              <span>Preview</span>
+              <span class="mobile-accordion-chevron" aria-hidden="true">▾</span>
+            </button>
+
+            <div id="previewAccordionContent" class="mobile-accordion-content">
+              <div class="row row-between">
+                <div class="row row-tight">
+                  <strong>Preview</strong>
+                  <span class="muted" id="previewMeta">-</span>
+                </div>
+              </div>
+
+              <div class="row mt-10">
+                <input id="searchInput" class="search-grow" type="text" placeholder="Search icon name..." />
+
+                <label class="row row-tight field-limit">
+                  <span class="muted">Preview limit</span>
+                  <input id="limitInput" type="number" min="1" max="50000" value="500" />
+                </label>
+
+                <label class="row row-tight">
+                  <input id="uniqueSort" type="checkbox" />
+                  Unique + A->Z
+                </label>
+
+                <button id="btnResetFilters" type="button" class="btn-ghost">Reset filters</button>
+                <button id="btnCopy" type="button" class="btn-ghost" disabled>Copy preview</button>
+              </div>
+
+              <div id="previewScroll" class="scroll mt-10">
+                <table>
+                  <thead>
+                    <tr>
+                      <th class="w-90">#</th>
+                      <th>name</th>
+                    </tr>
+                  </thead>
+                  <tbody id="previewBody">
+                    <tr><td colspan="2" class="muted">No data yet.</td></tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-
-          <div class="row mt-10">
-            <input id="searchInput" class="search-grow" type="text" placeholder="Search icon name..." />
-
-            <label class="row row-tight field-limit">
-              <span class="muted">Preview limit</span>
-              <input id="limitInput" type="number" min="1" max="50000" value="500" />
-            </label>
-
-            <label class="row row-tight">
-              <input id="uniqueSort" type="checkbox" />
-              Unique + A->Z
-            </label>
-
-            <button id="btnResetFilters" type="button" class="btn-ghost">Reset filtros</button>
-            <button id="btnCopy" type="button" class="btn-ghost" disabled>Copiar preview</button>
-          </div>
-
-          <div class="scroll mt-10">
-            <table>
-              <thead>
-                <tr>
-                  <th class="w-90">#</th>
-                  <th>name</th>
-                </tr>
-              </thead>
-              <tbody id="previewBody">
-                <tr><td colspan="2" class="muted">Sem dados ainda.</td></tr>
-              </tbody>
-            </table>
           </div>
         </div>
       </section>
     </main>
+    <div id="iconHoverPreview" class="icon-hover-preview" hidden>
+      <div id="iconHoverSvg" class="icon-hover-svg"></div>
+      <div id="iconHoverName" class="icon-hover-name"></div>
+    </div>
+    <div
+      id="errorPopup"
+      class="error-popup"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="errorPopupTitle"
+      aria-describedby="errorPopupMessage"
+      hidden
+    >
+      <div class="error-popup-card" role="document">
+        <div class="error-popup-head">
+          <strong id="errorPopupTitle">Error</strong>
+          <button id="errorPopupClose" type="button" class="error-popup-close" aria-label="Close error popup">×</button>
+        </div>
+        <div id="errorPopupMessage" class="error-popup-message"></div>
+      </div>
+    </div>
 
     <!-- INLINE_JS -->
   </body>

@@ -14,8 +14,10 @@ const els = {
   dropZone: document.getElementById("dropZone"),
   dropEmptyState: document.getElementById("dropEmptyState"),
   dropJsonPreview: document.getElementById("dropJsonPreview"),
+  jsonAccordion: document.getElementById("jsonAccordion"),
+  jsonAccordionToggle: document.getElementById("jsonAccordionToggle"),
   fileInput: document.getElementById("fileInput"),
-  btnThemeToggle: document.getElementById("btnThemeToggle"),
+  themeToggleInput: document.getElementById("themeToggleInput"),
 
   fileBadge: document.getElementById("fileBadge"),
   formatBadge: document.getElementById("formatBadge"),
@@ -31,11 +33,19 @@ const els = {
   btnRemoveJson: document.getElementById("btnRemoveJson"),
   btnDownload: document.getElementById("btnDownload"),
 
-  status: document.getElementById("status"),
-  errors: document.getElementById("errors"),
+  errorPopup: document.getElementById("errorPopup"),
+  errorPopupTitle: document.getElementById("errorPopupTitle"),
+  errorPopupMessage: document.getElementById("errorPopupMessage"),
+  errorPopupClose: document.getElementById("errorPopupClose"),
 
+  previewScroll: document.getElementById("previewScroll"),
+  previewAccordion: document.getElementById("previewAccordion"),
+  previewAccordionToggle: document.getElementById("previewAccordionToggle"),
   previewBody: document.getElementById("previewBody"),
   previewMeta: document.getElementById("previewMeta"),
+  iconHoverPreview: document.getElementById("iconHoverPreview"),
+  iconHoverSvg: document.getElementById("iconHoverSvg"),
+  iconHoverName: document.getElementById("iconHoverName"),
 };
 
 const DEFAULT_PREVIEW_LIMIT = 500;
@@ -48,8 +58,78 @@ let state = {
   rawNames: /** @type {string[]} */ ([]),
   finalNames: /** @type {string[]} */ ([]),
   filteredNames: /** @type {string[]} */ ([]),
+  iconByName: /** @type {Map<string, {viewBox:string, paths:{d:string, fill?:string, stroke?:string, strokeWidth?:string, strokeLinecap?:string, strokeLinejoin?:string, transform?:string}[]}>} */ (new Map()),
   uiTheme: /** @type {"light"|"dark"} */ ("light"),
 };
+
+let badgeFlashTimer = /** @type {ReturnType<typeof setTimeout>|null} */ (null);
+
+/**
+ * Hide error popup.
+ */
+function hideErrorPopup() {
+  els.errorPopup.hidden = true;
+}
+
+/**
+ * Show error popup.
+ * @param {string} message
+ * @param {string} [title]
+ */
+function showErrorPopup(message, title = "Error") {
+  if (!message) return;
+
+  els.errorPopupTitle.textContent = title;
+  els.errorPopupMessage.textContent = message;
+  els.errorPopup.hidden = false;
+}
+
+/**
+ * Restore default file badge text by current state.
+ */
+function restoreFileBadgeText() {
+  els.fileBadge.textContent = state.fileBaseName && state.fileBaseName !== "icons"
+    ? state.fileBaseName
+    : "No file";
+}
+
+/**
+ * Flash temporary feedback in file badge.
+ * @param {string} message
+ * @param {number} [ms]
+ */
+function flashFileBadge(message, ms = 1600) {
+  if (badgeFlashTimer) clearTimeout(badgeFlashTimer);
+  els.fileBadge.textContent = message;
+  badgeFlashTimer = setTimeout(() => {
+    restoreFileBadgeText();
+    badgeFlashTimer = null;
+  }, ms);
+}
+
+/**
+ * Set accordion open/closed state.
+ * @param {HTMLElement | null} accordion
+ * @param {boolean} expanded
+ */
+function setAccordionExpanded(accordion, expanded) {
+  if (!accordion) return;
+
+  accordion.classList.toggle("is-collapsed", !expanded);
+  const toggle = accordion.querySelector(".mobile-accordion-toggle");
+  if (toggle) {
+    toggle.setAttribute("aria-expanded", String(expanded));
+  }
+}
+
+/**
+ * Toggle accordion state.
+ * @param {HTMLElement | null} accordion
+ */
+function toggleAccordion(accordion) {
+  if (!accordion) return;
+  setAccordionExpanded(accordion, accordion.classList.contains("is-collapsed"));
+}
 
 /**
  * Escape HTML for safe table rendering.
@@ -111,19 +191,515 @@ function debounce(fn, waitMs) {
 }
 
 /**
+ * Normalize positive numeric dimensions.
+ * @param {any} value
+ * @param {number} fallback
+ * @returns {number}
+ */
+function normalizeDimension(value, fallback) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+/**
+ * Normalize raw path list into SVG path defs.
+ * @param {any} rawPaths
+ * @param {any} rawAttrs
+ * @returns {{ d:string, fill?:string, stroke?:string, strokeWidth?:string, strokeLinecap?:string, strokeLinejoin?:string, transform?:string }[]}
+ */
+function normalizePathDefs(rawPaths, rawAttrs) {
+  const paths = Array.isArray(rawPaths)
+    ? rawPaths
+    : typeof rawPaths === "string" && rawPaths.trim()
+      ? [rawPaths]
+      : rawPaths && typeof rawPaths === "object"
+        ? [rawPaths]
+      : [];
+
+  if (!paths.length) return [];
+
+  const attrs = Array.isArray(rawAttrs)
+    ? rawAttrs
+    : rawAttrs && typeof rawAttrs === "object"
+      ? [rawAttrs]
+      : [];
+
+  return paths
+    .map((path, idx) => {
+      const rawD = typeof path === "string"
+        ? path
+        : typeof path?.d === "string"
+          ? path.d
+          : typeof path?.path === "string"
+            ? path.path
+            : typeof path?._d === "string"
+              ? path._d
+              : "";
+      const d = rawD.trim();
+      if (!d) return null;
+
+      const pathFill = typeof path?.fill === "string" && path.fill.trim()
+        ? path.fill.trim()
+        : typeof path?._fill === "string" && path._fill.trim()
+          ? path._fill.trim()
+          : undefined;
+
+      const attrCandidate = attrs[idx] ?? attrs[0];
+      const fill = typeof attrCandidate?.fill === "string" && attrCandidate.fill.trim()
+        ? attrCandidate.fill.trim()
+        : pathFill;
+
+      const stroke = typeof attrCandidate?.stroke === "string" && attrCandidate.stroke.trim()
+        ? attrCandidate.stroke.trim()
+        : typeof path?.stroke === "string" && path.stroke.trim()
+          ? path.stroke.trim()
+          : undefined;
+
+      const strokeWidth = attrCandidate?.["stroke-width"] != null
+        ? String(attrCandidate["stroke-width"]).trim()
+        : path?.["stroke-width"] != null
+          ? String(path["stroke-width"]).trim()
+          : undefined;
+
+      const strokeLinecap = typeof attrCandidate?.["stroke-linecap"] === "string"
+        ? attrCandidate["stroke-linecap"].trim()
+        : undefined;
+
+      const strokeLinejoin = typeof attrCandidate?.["stroke-linejoin"] === "string"
+        ? attrCandidate["stroke-linejoin"].trim()
+        : undefined;
+
+      const transform = typeof attrCandidate?.transform === "string"
+        ? attrCandidate.transform.trim()
+        : undefined;
+
+      return { d, fill, stroke, strokeWidth, strokeLinecap, strokeLinejoin, transform };
+    })
+    .filter(Boolean);
+}
+
+/**
+ * Extract icon shape from raw SVG markup.
+ * @param {string} svgMarkup
+ * @returns {{viewBox:string, paths:{d:string, fill?:string, stroke?:string, strokeWidth?:string, strokeLinecap?:string, strokeLinejoin?:string, transform?:string}[]}|null}
+ */
+function iconShapeFromSvgMarkup(svgMarkup) {
+  if (typeof svgMarkup !== "string" || !svgMarkup.trim()) return null;
+
+  try {
+    const doc = new DOMParser().parseFromString(svgMarkup, "image/svg+xml");
+    const svg = doc.querySelector("svg");
+    if (!svg) return null;
+
+    const rawViewBox = svg.getAttribute("viewBox");
+    const width = normalizeDimension(svg.getAttribute("width"), 1024);
+    const height = normalizeDimension(svg.getAttribute("height"), width);
+    const viewBox = rawViewBox && rawViewBox.trim() ? rawViewBox.trim() : `0 0 ${width} ${height}`;
+
+    const pathNodes = Array.from(svg.querySelectorAll("path"));
+    const paths = pathNodes
+      .map((node) => {
+        const d = node.getAttribute("d");
+        if (!d || !d.trim()) return null;
+
+        const fill = node.getAttribute("fill");
+        const stroke = node.getAttribute("stroke");
+        const strokeWidth = node.getAttribute("stroke-width");
+        const strokeLinecap = node.getAttribute("stroke-linecap");
+        const strokeLinejoin = node.getAttribute("stroke-linejoin");
+        const transform = node.getAttribute("transform");
+
+        return {
+          d: d.trim(),
+          fill: fill && fill.trim() ? fill.trim() : undefined,
+          stroke: stroke && stroke.trim() ? stroke.trim() : undefined,
+          strokeWidth: strokeWidth && strokeWidth.trim() ? strokeWidth.trim() : undefined,
+          strokeLinecap: strokeLinecap && strokeLinecap.trim() ? strokeLinecap.trim() : undefined,
+          strokeLinejoin: strokeLinejoin && strokeLinejoin.trim() ? strokeLinejoin.trim() : undefined,
+          transform: transform && transform.trim() ? transform.trim() : undefined,
+        };
+      })
+      .filter(Boolean);
+
+    if (!paths.length) return null;
+    return { viewBox, paths };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Build normalized icon shape from IcoMoon icon-like object.
+ * @param {any} source
+ * @param {{paths?: any, attrs?: any, width?: any, height?: any}} [fallback]
+ * @returns {{viewBox:string, paths:{d:string, fill?:string, stroke?:string, strokeWidth?:string, strokeLinecap?:string, strokeLinejoin?:string, transform?:string}[]}|null}
+ */
+function iconShapeFrom(source, fallback = {}) {
+  if (!source || typeof source !== "object") return null;
+
+  const paths = normalizePathDefs(source.paths ?? fallback.paths, source.attrs ?? fallback.attrs);
+  if (!paths.length) return null;
+
+  const width = normalizeDimension(source.width ?? fallback.width, 1024);
+  const height = normalizeDimension(source.height ?? fallback.height, width);
+
+  return {
+    viewBox: `0 0 ${width} ${height}`,
+    paths,
+  };
+}
+
+/**
+ * Return element payload for IcoMoon V2 AST node.
+ * @param {any} node
+ * @returns {{tagName?: string, attributes?: any, children?: any[]}|null}
+ */
+function getNodePayload(node) {
+  if (!node || typeof node !== "object") return null;
+  if (typeof node.tagName === "string") return node;
+  if (node.tag === "Element" && Array.isArray(node.args) && node.args[0] && typeof node.args[0] === "object") {
+    return node.args[0];
+  }
+  return null;
+}
+
+/**
+ * Convert V2 AST value node to text.
+ * @param {any} valueNode
+ * @returns {string|undefined}
+ */
+function nodeValueToString(valueNode) {
+  if (!valueNode || typeof valueNode !== "object") return undefined;
+
+  if (valueNode.tag === "StringValue" && typeof valueNode.args?.[0] === "string") {
+    return valueNode.args[0];
+  }
+
+  if (valueNode.tag === "Value") {
+    return nodeValueToString(valueNode.args?.[0]);
+  }
+
+  if (valueNode.tag === "Paint") {
+    const paint = valueNode.args?.[0];
+    if (paint?.tag === "CurrentColor") return "currentColor";
+    if (paint?.tag === "NoPaint") return "none";
+    return nodeValueToString(paint);
+  }
+
+  if (valueNode.tag === "Length") {
+    const unit = valueNode.args?.[0];
+    if (unit?.tag === "Px") {
+      const amount = unit.args?.[0];
+      return amount != null ? String(amount) : undefined;
+    }
+    return undefined;
+  }
+
+  if (valueNode.tag === "StrokeLineCap") {
+    const cap = valueNode.args?.[0]?.tag;
+    if (cap === "RoundCap") return "round";
+    if (cap === "ButtCap") return "butt";
+    if (cap === "SquareCap") return "square";
+    return undefined;
+  }
+
+  if (valueNode.tag === "StrokeLineJoin") {
+    const join = valueNode.args?.[0]?.tag;
+    if (join === "RoundJoin") return "round";
+    if (join === "MiterJoin") return "miter";
+    if (join === "BevelJoin") return "bevel";
+    return undefined;
+  }
+
+  if (valueNode.tag === "Transform") {
+    const m = valueNode.args?.[0];
+    if (!m || typeof m !== "object") return undefined;
+    const values = [m.a, m.b, m.c, m.d, m.e, m.f].map((v) => Number(v));
+    if (values.some((v) => !Number.isFinite(v))) return undefined;
+    return `matrix(${values.join(" ")})`;
+  }
+
+  return undefined;
+}
+
+/**
+ * Convert V2 AST path data into SVG path string.
+ * @param {any} dAttr
+ * @returns {string|undefined}
+ */
+function nodePathToD(dAttr) {
+  const value = dAttr?.tag === "Value" ? dAttr.args?.[0] : null;
+  if (!value || value.tag !== "Paths" || !Array.isArray(value.args)) return undefined;
+
+  const commands = [];
+
+  value.args.forEach((group) => {
+    if (!Array.isArray(group)) return;
+
+    group.forEach((subPath) => {
+      const start = subPath?.start;
+      if (!Array.isArray(start) || start.length !== 2) return;
+
+      commands.push(`M ${start[0]} ${start[1]}`);
+
+      (subPath?.cmds || []).forEach((cmd) => {
+        if (cmd?.tag === "LineTo") {
+          const point = cmd?.args?.[0]?.point;
+          if (Array.isArray(point) && point.length === 2) {
+            commands.push(`L ${point[0]} ${point[1]}`);
+          }
+          return;
+        }
+
+        if (cmd?.tag === "BezierCurveTo") {
+          const params = cmd?.args?.[0]?.args?.[0];
+          const c1 = params?.c1;
+          const c2 = params?.c2;
+          const end = params?.end;
+          if (
+            Array.isArray(c1) && c1.length === 2 &&
+            Array.isArray(c2) && c2.length === 2 &&
+            Array.isArray(end) && end.length === 2
+          ) {
+            commands.push(`C ${c1[0]} ${c1[1]} ${c2[0]} ${c2[1]} ${end[0]} ${end[1]}`);
+          }
+        }
+      });
+
+      if (subPath?.endings?.tag === "Connected") {
+        commands.push("Z");
+      }
+    });
+  });
+
+  return commands.length ? commands.join(" ") : undefined;
+}
+
+/**
+ * Extract icon shape from IcoMoon V2 node AST.
+ * @param {any} node
+ * @returns {{viewBox:string, paths:{d:string, fill?:string, stroke?:string, strokeWidth?:string, strokeLinecap?:string, strokeLinejoin?:string, transform?:string}[]}|null}
+ */
+function iconShapeFromV2NodeAst(node) {
+  const root = getNodePayload(node);
+  if (!root || root.tagName !== "svg") return null;
+
+  const attrs = root.attributes || {};
+  const viewBoxData = attrs.viewBox?.args?.[0]?.args?.[0];
+  const width = normalizeDimension(nodeValueToString(attrs.width), 1024);
+  const height = normalizeDimension(nodeValueToString(attrs.height), width);
+  const viewBox = viewBoxData && typeof viewBoxData === "object"
+    ? `${viewBoxData.minX ?? 0} ${viewBoxData.minY ?? 0} ${viewBoxData.width ?? width} ${viewBoxData.height ?? height}`
+    : `0 0 ${width} ${height}`;
+
+  const paths = [];
+  const stack = Array.isArray(root.children) ? [...root.children] : [];
+
+  while (stack.length) {
+    const child = stack.pop();
+    const payload = getNodePayload(child);
+    if (!payload) continue;
+
+    if (payload.tagName === "path") {
+      const d = nodePathToD(payload.attributes?.d);
+      if (d) {
+        paths.push({
+          d,
+          fill: nodeValueToString(payload.attributes?.fill),
+          stroke: nodeValueToString(payload.attributes?.stroke),
+          strokeWidth: nodeValueToString(payload.attributes?.["stroke-width"]),
+          strokeLinecap: nodeValueToString(payload.attributes?.["stroke-linecap"]),
+          strokeLinejoin: nodeValueToString(payload.attributes?.["stroke-linejoin"]),
+          transform: nodeValueToString(payload.attributes?.transform),
+        });
+      }
+    }
+
+    if (Array.isArray(payload.children) && payload.children.length) {
+      stack.push(...payload.children);
+    }
+  }
+
+  if (!paths.length) return null;
+  return { viewBox, paths };
+}
+
+/**
+ * Extract icon shape from a V2 glyph candidate.
+ * @param {any} glyph
+ * @returns {{viewBox:string, paths:{d:string, fill?:string, stroke?:string, strokeWidth?:string, strokeLinecap?:string, strokeLinejoin?:string, transform?:string}[]}|null}
+ */
+function iconShapeFromV2Glyph(glyph) {
+  return (
+    iconShapeFromV2NodeAst(glyph?.node) ||
+    iconShapeFrom(glyph?.icon) ||
+    iconShapeFrom(glyph?.svg, {
+      paths: glyph?.svg?.paths ?? glyph?.svg?.path ?? glyph?.svg?.d,
+      attrs: glyph?.svg?.attrs,
+      width: glyph?.svg?.width,
+      height: glyph?.svg?.height,
+    }) ||
+    iconShapeFromSvgMarkup(glyph?.svgText) ||
+    iconShapeFromSvgMarkup(glyph?.svg?.content) ||
+    iconShapeFromSvgMarkup(glyph?.svg?.raw) ||
+    iconShapeFromSvgMarkup(glyph?.svg) ||
+    iconShapeFrom(glyph, {
+      paths: glyph?.paths ?? glyph?.path ?? glyph?.d ?? glyph?.svgPath ?? glyph?.svg,
+      attrs: glyph?.attrs,
+      width: glyph?.width,
+      height: glyph?.height,
+    })
+  );
+}
+
+/**
+ * Build icon map by icon name from parsed IcoMoon JSON.
+ * @param {any} json
+ * @param {"V1"|"V2"|null} format
+ * @returns {Map<string, {viewBox:string, paths:{d:string, fill?:string, stroke?:string, strokeWidth?:string, strokeLinecap?:string, strokeLinejoin?:string, transform?:string}[]}>}
+ */
+function buildIconMap(json, format) {
+  const map = new Map();
+
+  if (format === "V1" && Array.isArray(json?.icons)) {
+    json.icons.forEach((entry) => {
+      const name = entry?.properties?.name;
+      if (!name || map.has(name)) return;
+
+      const shape = iconShapeFrom(entry?.icon);
+      if (shape) map.set(name, shape);
+    });
+    return map;
+  }
+
+  if (format === "V2" && Array.isArray(json?.glyphs)) {
+    json.glyphs.forEach((glyph) => {
+      const name = glyph?.extras?.name ?? glyph?.name ?? glyph?.css ?? glyph?.properties?.name;
+      if (!name || map.has(name)) return;
+
+      const shape = iconShapeFromV2Glyph(glyph);
+      if (shape) map.set(name, shape);
+    });
+  }
+
+  return map;
+}
+
+/**
+ * Render icon shape into SVG DOM element.
+ * @param {{viewBox:string, paths:{d:string, fill?:string, stroke?:string, strokeWidth?:string, strokeLinecap?:string, strokeLinejoin?:string, transform?:string}[]}} shape
+ * @returns {SVGSVGElement}
+ */
+function createIconSvg(shape) {
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", shape.viewBox);
+  svg.setAttribute("aria-hidden", "true");
+
+  shape.paths.forEach((p) => {
+    const path = document.createElementNS(NS, "path");
+    path.setAttribute("d", p.d);
+    path.setAttribute("fill", p.fill || (p.stroke ? "none" : "currentColor"));
+    if (p.stroke) path.setAttribute("stroke", p.stroke);
+    if (p.strokeWidth) path.setAttribute("stroke-width", p.strokeWidth);
+    if (p.strokeLinecap) path.setAttribute("stroke-linecap", p.strokeLinecap);
+    if (p.strokeLinejoin) path.setAttribute("stroke-linejoin", p.strokeLinejoin);
+    if (p.transform) path.setAttribute("transform", p.transform);
+    svg.appendChild(path);
+  });
+
+  return svg;
+}
+
+let hoveredIconName = "";
+
+/**
+ * Hide icon hover tooltip.
+ */
+function hideIconHoverPreview() {
+  hoveredIconName = "";
+  els.iconHoverPreview.hidden = true;
+  els.iconHoverPreview.classList.remove("is-visible");
+}
+
+/**
+ * Position hover preview near the cursor.
+ * @param {number} clientX
+ * @param {number} clientY
+ */
+function positionIconHoverPreview(clientX, clientY) {
+  const offset = 14;
+  const boxW = els.iconHoverPreview.offsetWidth || 140;
+  const boxH = els.iconHoverPreview.offsetHeight || 120;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  let x = clientX + offset;
+  let y = clientY + offset;
+
+  if (x + boxW + 8 > vw) x = Math.max(8, clientX - boxW - offset);
+  if (y + boxH + 8 > vh) y = Math.max(8, clientY - boxH - offset);
+
+  els.iconHoverPreview.style.left = `${x}px`;
+  els.iconHoverPreview.style.top = `${y}px`;
+}
+
+/**
+ * Show hover preview for an icon name.
+ * @param {string} iconName
+ * @param {number} clientX
+ * @param {number} clientY
+ */
+function showIconHoverPreview(iconName, clientX, clientY) {
+  const shape = state.iconByName.get(iconName);
+  if (!shape) {
+    hideIconHoverPreview();
+    return;
+  }
+
+  if (hoveredIconName !== iconName) {
+    hoveredIconName = iconName;
+    els.iconHoverSvg.innerHTML = "";
+    els.iconHoverSvg.appendChild(createIconSvg(shape));
+    els.iconHoverName.textContent = iconName;
+  }
+
+  if (els.iconHoverPreview.hidden) {
+    els.iconHoverPreview.hidden = false;
+    els.iconHoverPreview.classList.add("is-visible");
+  }
+
+  positionIconHoverPreview(clientX, clientY);
+}
+
+/**
+ * Get icon name from hovered preview table row.
+ * @param {EventTarget|null} target
+ * @returns {string|null}
+ */
+function getHoveredRowIconName(target) {
+  if (!(target instanceof Element)) return null;
+  const row = target.closest("tr[data-icon-name]");
+  if (!row) return null;
+
+  const name = row.getAttribute("data-icon-name");
+  return name && name.trim() ? name : null;
+}
+
+/**
  * Render preview rows.
  * @param {{ index:number, name:string }[]} rows
  * @param {string} query
  */
 function renderPreview(rows, query) {
   if (!rows.length) {
-    const msg = query ? "Sem resultados para a pesquisa." : "Sem dados.";
+    const msg = query ? "No results for this search." : "No data.";
     els.previewBody.innerHTML = `<tr><td colspan="2" class="muted">${msg}</td></tr>`;
     return;
   }
 
   els.previewBody.innerHTML = rows
-    .map((row) => `<tr><td>${row.index}</td><td>${highlightMatch(row.name, query)}</td></tr>`)
+    .map((row) => `<tr data-icon-name="${escapeHtml(row.name)}"><td>${row.index}</td><td>${highlightMatch(row.name, query)}</td></tr>`)
     .join("");
 }
 
@@ -131,6 +707,8 @@ function renderPreview(rows, query) {
  * Apply search + limit to preview.
  */
 function updatePreview() {
+  hideIconHoverPreview();
+
   const query = (els.searchInput.value || "").trim().toLowerCase();
   const limit = Math.max(1, Math.min(50000, Number(els.limitInput.value || DEFAULT_PREVIEW_LIMIT)));
 
@@ -147,7 +725,7 @@ function updatePreview() {
   const filteredTxt = rows.length;
 
   els.previewMeta.textContent =
-    `Total: ${state.finalNames.length} | Filtrado: ${filteredTxt} | A mostrar: ${shownTxt}${filteredTxt > shownTxt ? " (limit)" : ""}`;
+    `Total: ${state.finalNames.length} | Filtered: ${filteredTxt} | Showing: ${shownTxt}${filteredTxt > shownTxt ? " (limit)" : ""}`;
 
   els.btnCopy.disabled = filteredTxt === 0;
 
@@ -194,7 +772,8 @@ function applyTheme(theme, options = {}) {
 
   state.uiTheme = nextTheme;
   document.documentElement.setAttribute("data-theme", nextTheme);
-  els.btnThemeToggle.textContent = nextTheme === "dark" ? "Tema: Escuro" : "Tema: Claro";
+  els.themeToggleInput.checked = nextTheme === "dark";
+  els.themeToggleInput.setAttribute("aria-checked", String(nextTheme === "dark"));
 
   if (persist) {
     try {
@@ -207,13 +786,6 @@ function applyTheme(theme, options = {}) {
   if (rerenderPreview && state.jsonData) {
     renderDropJsonPreview();
   }
-}
-
-/**
- * Toggle between light and dark mode.
- */
-function toggleTheme() {
-  applyTheme(state.uiTheme === "dark" ? "light" : "dark");
 }
 
 /**
@@ -319,10 +891,12 @@ function renderDropJsonPreview() {
   els.dropJsonPreview.innerHTML = "";
 
   if (!state.jsonData) {
+    els.jsonAccordion.classList.remove("has-json-preview");
+    setAccordionExpanded(els.jsonAccordion, true);
     els.dropZone.classList.remove("has-json");
     els.dropZone.setAttribute("role", "button");
     els.dropZone.setAttribute("tabindex", "0");
-    els.dropZone.setAttribute("aria-label", "Arrastar ou escolher ficheiro JSON");
+    els.dropZone.setAttribute("aria-label", "Drag or choose JSON file");
     els.dropEmptyState.hidden = false;
     els.dropJsonPreview.hidden = true;
     return;
@@ -341,10 +915,11 @@ function renderDropJsonPreview() {
     els.dropJsonPreview.appendChild(fallback);
   }
 
+  els.jsonAccordion.classList.add("has-json-preview");
   els.dropZone.classList.add("has-json");
   els.dropZone.removeAttribute("role");
   els.dropZone.removeAttribute("tabindex");
-  els.dropZone.setAttribute("aria-label", "Preview do JSON carregado");
+  els.dropZone.setAttribute("aria-label", "Loaded JSON preview");
   els.dropEmptyState.hidden = true;
   els.dropJsonPreview.hidden = false;
 }
@@ -354,16 +929,20 @@ function renderDropJsonPreview() {
  */
 function resetUI() {
   const currentTheme = state.uiTheme;
+  hideIconHoverPreview();
+  hideErrorPopup();
+  if (badgeFlashTimer) {
+    clearTimeout(badgeFlashTimer);
+    badgeFlashTimer = null;
+  }
 
-  els.errors.textContent = "";
-  els.fileBadge.textContent = "Sem ficheiro";
   els.formatBadge.textContent = "-";
   els.statsBadge.textContent = "-";
-  els.status.textContent = "A espera do ficheiro...";
 
   els.btnDownload.disabled = true;
   els.btnCopy.disabled = true;
   els.btnRemoveJson.disabled = true;
+  els.btnRemoveJson.hidden = true;
   els.downloadFormat.value = "xlsx";
 
   state = {
@@ -373,9 +952,11 @@ function resetUI() {
     rawNames: [],
     finalNames: [],
     filteredNames: [],
+    iconByName: new Map(),
     uiTheme: currentTheme,
   };
 
+  restoreFileBadgeText();
   renderDropJsonPreview();
   els.previewMeta.textContent = "-";
   renderPreview([], "");
@@ -394,35 +975,35 @@ async function handleFile(file) {
     state.jsonData = json;
 
     state.fileBaseName = (file.name || "icons").replace(/\.json$/i, "");
-    els.fileBadge.textContent = state.fileBaseName;
+    restoreFileBadgeText();
     els.btnRemoveJson.disabled = false;
+    els.btnRemoveJson.hidden = false;
     renderDropJsonPreview();
 
     state.format = detectFormat(json);
 
     if (!state.format) {
-      els.errors.textContent = "Formato nao reconhecido. Preciso de IcoMoon V1 (selection.json) ou V2 (glyphs[]).";
+      showErrorPopup(
+        "Unrecognized format. Expected IcoMoon V1 (selection.json) or V2 (font_name.icomoon.json).",
+        "Invalid JSON format",
+      );
       return;
     }
 
+    state.iconByName = buildIconMap(json, state.format);
     els.formatBadge.textContent = `IcoMoon ${state.format}`;
 
     state.rawNames = extractNames(json, state.format);
     state.finalNames = buildFinalList(state.rawNames, els.uniqueSort.checked);
 
     const statsRaw = computeStats(state.rawNames);
-    els.statsBadge.textContent = `Total: ${statsRaw.total} | Unicos: ${statsRaw.unique} | Duplicados: ${statsRaw.duplicates}`;
-
-    els.status.textContent =
-      state.finalNames.length > 0
-        ? `OK - ${state.finalNames.length} icons carregados`
-        : "Ficheiro lido, mas sem nomes de icon.";
+    els.statsBadge.textContent = `Total: ${statsRaw.total} | Unique: ${statsRaw.unique} | Duplicates: ${statsRaw.duplicates}`;
 
     els.btnDownload.disabled = state.finalNames.length === 0;
 
     updatePreview();
   } catch {
-    els.errors.textContent = "Erro a ler o JSON (invalido ou corrompido).";
+    showErrorPopup("Error reading JSON (invalid or corrupted file).", "Invalid JSON file");
   }
 }
 
@@ -431,6 +1012,8 @@ async function handleFile(file) {
 els.uniqueSort.checked = false;
 els.limitInput.value = String(DEFAULT_PREVIEW_LIMIT);
 applyTheme(resolveInitialTheme(), { persist: false, rerenderPreview: false });
+setAccordionExpanded(els.jsonAccordion, true);
+setAccordionExpanded(els.previewAccordion, true);
 
 els.dropZone.addEventListener("click", () => {
   if (state.jsonData) return;
@@ -457,19 +1040,53 @@ els.uniqueSort.addEventListener("change", () => {
 
 els.searchInput.addEventListener("input", debouncedUpdatePreview);
 els.limitInput.addEventListener("input", debouncedUpdatePreview);
+els.previewScroll.addEventListener("scroll", hideIconHoverPreview);
+
+els.previewBody.addEventListener("mousemove", (e) => {
+  const iconName = getHoveredRowIconName(e.target);
+  if (!iconName) {
+    hideIconHoverPreview();
+    return;
+  }
+
+  showIconHoverPreview(iconName, e.clientX, e.clientY);
+});
+
+els.previewBody.addEventListener("mouseleave", hideIconHoverPreview);
+window.addEventListener("blur", hideIconHoverPreview);
+
+els.jsonAccordionToggle.addEventListener("click", () => {
+  if (!state.jsonData) return;
+  toggleAccordion(els.jsonAccordion);
+});
+els.previewAccordionToggle.addEventListener("click", () => {
+  toggleAccordion(els.previewAccordion);
+});
 
 els.btnResetFilters.addEventListener("click", resetFilters);
-els.btnRemoveJson.addEventListener("click", removeCurrentJson);
-els.btnThemeToggle.addEventListener("click", toggleTheme);
+els.btnRemoveJson.addEventListener("click", (e) => {
+  e.stopPropagation();
+  removeCurrentJson();
+});
+els.errorPopupClose.addEventListener("click", hideErrorPopup);
+els.errorPopup.addEventListener("click", (e) => {
+  if (e.target === els.errorPopup) hideErrorPopup();
+});
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !els.errorPopup.hidden) hideErrorPopup();
+});
+els.themeToggleInput.addEventListener("change", () => {
+  applyTheme(els.themeToggleInput.checked ? "dark" : "light");
+});
 
 els.btnCopy.addEventListener("click", async () => {
   if (!state.filteredNames.length) return;
 
   try {
     await copyToClipboard(state.filteredNames.join("\n"));
-    els.status.textContent = `Copiado para clipboard: ${state.filteredNames.length} nomes.`;
+    flashFileBadge(`Copied: ${state.filteredNames.length} names`);
   } catch {
-    els.errors.textContent = "Nao foi possivel copiar para o clipboard neste browser.";
+    showErrorPopup("Could not copy to clipboard in this browser.", "Clipboard error");
   }
 });
 
