@@ -263,6 +263,14 @@ p {
   flex-direction: column;
 }
 
+.card-details .row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) 120px auto;
+  gap: 10px;
+  align-items: end;
+}
+
 .card-drop {
   flex: 1;
   min-height: 0;
@@ -673,12 +681,28 @@ button:disabled {
   content: "▾";
   position: absolute;
   right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
+  top: auto;
+  bottom: 12px;
+  transform: none;
   color: var(--muted);
   font-size: 12px;
   line-height: 1;
   pointer-events: none;
+}
+
+.download-field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.download-field > .muted {
+  display: block;
+  width: 100%;
+  text-align: left;
+  line-height: 1.1;
 }
 
 input[type="text"],
@@ -702,6 +726,27 @@ select {
 .search-grow {
   flex: 1;
   min-width: 180px;
+}
+
+.download-name-field {
+  min-width: 0;
+}
+
+.download-name-field input[type="text"] {
+  width: 100%;
+}
+
+.download-format-field {
+  min-width: 120px;
+  width: 120px;
+}
+
+.download-format-field select {
+  width: 100%;
+}
+
+.card-details #btnDownload {
+  height: 38px;
 }
 
 .field-limit input[type="number"] {
@@ -1214,13 +1259,22 @@ code {
     display: grid;
     grid-template-columns: 1fr;
     gap: 8px;
+    align-items: stretch;
   }
 
   .card-details .row > * {
     width: 100%;
   }
 
-  .card-details .row label {
-    justify-content: space-between;
+  .card-details .row .download-format-field {
+    width: 100%;
+  }
+
+  .card-details .row .download-field {
+    justify-content: flex-start;
+  }
+
+  .card-details #btnDownload {
+    height: auto;
   }
 }

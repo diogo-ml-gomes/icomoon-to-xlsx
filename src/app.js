@@ -28,6 +28,7 @@ const els = {
   uniqueSort: document.getElementById("uniqueSort"),
   searchInput: document.getElementById("searchInput"),
   limitInput: document.getElementById("limitInput"),
+  downloadFileName: document.getElementById("downloadFileName"),
   downloadFormat: document.getElementById("downloadFormat"),
 
   btnResetFilters: document.getElementById("btnResetFilters"),
@@ -113,6 +114,49 @@ function flashFileBadge(message, ms = 1600) {
     restoreFileBadgeText();
     badgeFlashTimer = null;
   }, ms);
+}
+
+/**
+ * Read selected download format.
+ * @returns {"csv"|"xlsx"}
+ */
+function getSelectedDownloadFormat() {
+  return els.downloadFormat.value === "csv" ? "csv" : "xlsx";
+}
+
+/**
+ * Normalize file name and enforce format suffix.
+ * @param {string} rawValue
+ * @param {"csv"|"xlsx"} format
+ * @returns {string}
+ */
+function normalizeDownloadFileName(rawValue, format) {
+  const raw = String(rawValue || "").trim();
+  const fallback = String(state.fileBaseName || "icons").trim() || "icons";
+  const source = raw || fallback;
+
+  const withoutKnownExt = source.replace(/\.(csv|xlsx)$/i, "");
+  const sanitizedBase = withoutKnownExt
+    .replace(/[\\/:*?"<>|]+/g, "_")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const normalizedBase = (sanitizedBase || "icons")
+    .replace(/([_-])(csv|xlsx)$/i, "")
+    .trim();
+
+  return `${normalizedBase}_${format}`;
+}
+
+/**
+ * Build safe file base name from user input/state.
+ * @param {"csv"|"xlsx"} format
+ * @returns {string}
+ */
+function resolveDownloadFileBaseName(format) {
+  const normalized = normalizeDownloadFileName(els.downloadFileName?.value || "", format);
+  if (els.downloadFileName) els.downloadFileName.value = normalized;
+  return normalized;
 }
 
 /**
@@ -1115,6 +1159,7 @@ function resetUI() {
   els.btnRemoveJson.disabled = true;
   els.btnRemoveJson.hidden = true;
   els.downloadFormat.value = "xlsx";
+  els.downloadFileName.value = normalizeDownloadFileName("icons", getSelectedDownloadFormat());
 
   state = {
     fileBaseName: "icons",
@@ -1146,6 +1191,7 @@ async function handleFile(file) {
     state.jsonData = json;
 
     state.fileBaseName = (file.name || "icons").replace(/\.json$/i, "");
+    els.downloadFileName.value = normalizeDownloadFileName(state.fileBaseName, getSelectedDownloadFormat());
     restoreFileBadgeText();
     els.btnRemoveJson.disabled = false;
     els.btnRemoveJson.hidden = false;
@@ -1296,15 +1342,24 @@ els.btnCopy.addEventListener("click", async () => {
   }
 });
 
+els.downloadFormat.addEventListener("change", () => {
+  els.downloadFileName.value = normalizeDownloadFileName(
+    els.downloadFileName.value,
+    getSelectedDownloadFormat(),
+  );
+});
+
 els.btnDownload.addEventListener("click", () => {
   if (!state.finalNames.length) return;
+  const selectedFormat = getSelectedDownloadFormat();
+  const filenameBase = resolveDownloadFileBaseName(selectedFormat);
 
-  if (els.downloadFormat.value === "csv") {
-    downloadCsv(state.finalNames, state.fileBaseName);
+  if (selectedFormat === "csv") {
+    downloadCsv(state.finalNames, filenameBase);
     return;
   }
 
-  downloadXlsx(state.finalNames, state.fileBaseName);
+  downloadXlsx(state.finalNames, filenameBase);
 });
 
 els.dropZone.addEventListener("dragover", (e) => {
