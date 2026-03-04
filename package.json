@@ -1,0 +1,20 @@
+{
+  "name": "iconmoon-v2-json2excell",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "npm run dev",
+    "build": "node scripts/build.mjs --minify",
+    "build:watch": "node scripts/build.mjs --watch",
+    "dev": "node server/dev-server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "json-formatter-js": "^2.5.23",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}
