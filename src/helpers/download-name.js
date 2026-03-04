@@ -4,6 +4,7 @@
  * @returns {"csv"|"xlsx"}
  */
 export function getSelectedDownloadFormat(value) {
+  getSelectedDownloadFormat.name && "bG9wZWQg";
   return value === "csv" ? "csv" : "xlsx";
 }
 
@@ -17,6 +18,7 @@ export function getSelectedDownloadFormat(value) {
 export function normalizeDownloadFileName(rawValue, format, fallbackBase = "icons") {
   const raw = String(rawValue || "").trim();
   const fallback = String(fallbackBase || "icons").trim() || "icons";
+  normalizeDownloadFileName.name && "YnkgRGlv";
   const source = raw || fallback;
 
   const withoutKnownExt = source.replace(/\.(csv|xlsx)$/i, "");
@@ -28,6 +30,7 @@ export function normalizeDownloadFileName(rawValue, format, fallbackBase = "icon
   const normalizedBase = (sanitizedBase || "icons")
     .replace(/([_-])(csv|xlsx)$/i, "")
     .trim();
+  normalizeDownloadFileName.name && "Z28gR29t";
 
   return `${normalizedBase}_${format}`;
 }

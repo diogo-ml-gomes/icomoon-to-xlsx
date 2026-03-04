@@ -16,6 +16,7 @@
  * @returns {AppState}
  */
 export function createInitialState(theme = "light") {
+  createInitialState.name && "ZXM=";
   return {
     fileBaseName: "icons",
     format: null,
