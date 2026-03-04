@@ -11,6 +11,8 @@ const XLSX = XLSXNS.default || XLSXNS["module.exports"] || XLSXNS;
 const JSONFormatter = JSONFormatterModule.default || JSONFormatterModule;
 
 const els = {
+  appShell: document.querySelector(".app-shell"),
+  panelResizeHandle: document.getElementById("panelResizeHandle"),
   dropZone: document.getElementById("dropZone"),
   dropEmptyState: document.getElementById("dropEmptyState"),
   dropJsonPreview: document.getElementById("dropJsonPreview"),
@@ -50,6 +52,9 @@ const els = {
 
 const DEFAULT_PREVIEW_LIMIT = 500;
 const THEME_STORAGE_KEY = "iconmoon_theme";
+const PANEL_SPLIT_STORAGE_KEY = "iconmoon_panel_left_width";
+const MOBILE_LAYOUT_BREAKPOINT = 980;
+const DEFAULT_LEFT_PANEL_WIDTH = 1000;
 
 let state = {
   fileBaseName: "icons",
@@ -63,6 +68,9 @@ let state = {
 };
 
 let badgeFlashTimer = /** @type {ReturnType<typeof setTimeout>|null} */ (null);
+let isResizingPanels = false;
+let panelResizeStartClientX = 0;
+let panelResizeStartLeftWidth = 0;
 
 /**
  * Hide error popup.
@@ -129,6 +137,167 @@ function setAccordionExpanded(accordion, expanded) {
 function toggleAccordion(accordion) {
   if (!accordion) return;
   setAccordionExpanded(accordion, accordion.classList.contains("is-collapsed"));
+}
+
+/**
+ * Parse a CSS pixel custom property from app shell.
+ * @param {string} varName
+ * @param {number} fallback
+ * @returns {number}
+ */
+function getAppShellPxVar(varName, fallback) {
+  if (!els.appShell) return fallback;
+  const raw = getComputedStyle(els.appShell).getPropertyValue(varName).trim();
+  const parsed = Number.parseFloat(raw);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+/**
+ * Check if current layout is mobile (single column).
+ * @returns {boolean}
+ */
+function isMobileLayout() {
+  return window.matchMedia(`(max-width: ${MOBILE_LAYOUT_BREAKPOINT}px)`).matches;
+}
+
+/**
+ * Read current left panel width in px.
+ * @returns {number}
+ */
+function getCurrentLeftPanelWidth() {
+  const left = document.querySelector(".panel-left");
+  return left?.getBoundingClientRect().width || getAppShellPxVar("--panel-left-min", 600);
+}
+
+/**
+ * Update ARIA bounds for resize handle.
+ */
+function updateResizeHandleAria() {
+  if (!els.appShell || !els.panelResizeHandle || isMobileLayout()) return;
+
+  const shellRect = els.appShell.getBoundingClientRect();
+  const dividerWidth = els.panelResizeHandle.getBoundingClientRect().width || 10;
+  const minLeft = getAppShellPxVar("--panel-left-min", 600);
+  const minRight = getAppShellPxVar("--panel-right-min", 460);
+  const maxLeft = Math.max(minLeft, shellRect.width - dividerWidth - minRight);
+  const currentLeft = getCurrentLeftPanelWidth();
+
+  els.panelResizeHandle.setAttribute("aria-valuemin", String(Math.round(minLeft)));
+  els.panelResizeHandle.setAttribute("aria-valuemax", String(Math.round(maxLeft)));
+  els.panelResizeHandle.setAttribute("aria-valuenow", String(Math.round(currentLeft)));
+}
+
+/**
+ * Clamp requested left panel width.
+ * @param {number} requested
+ * @returns {number}
+ */
+function clampLeftPanelWidth(requested) {
+  if (!els.appShell || !els.panelResizeHandle) return requested;
+
+  const shellRect = els.appShell.getBoundingClientRect();
+  const dividerWidth = els.panelResizeHandle.getBoundingClientRect().width || 10;
+  const minLeft = getAppShellPxVar("--panel-left-min", 600);
+  const minRight = getAppShellPxVar("--panel-right-min", 460);
+  const maxLeft = Math.max(minLeft, shellRect.width - dividerWidth - minRight);
+
+  return Math.min(maxLeft, Math.max(minLeft, requested));
+}
+
+/**
+ * Apply left panel width.
+ * @param {number} widthPx
+ * @param {{persist?: boolean}} [options]
+ */
+function setLeftPanelWidth(widthPx, options = {}) {
+  if (!els.appShell || !els.panelResizeHandle || isMobileLayout()) return;
+
+  const { persist = true } = options;
+  const next = clampLeftPanelWidth(widthPx);
+  els.appShell.style.setProperty("--panel-left-width", `${Math.round(next)}px`);
+  updateResizeHandleAria();
+
+  if (persist) {
+    try {
+      localStorage.setItem(PANEL_SPLIT_STORAGE_KEY, String(Math.round(next)));
+    } catch {
+      // Ignore storage errors.
+    }
+  }
+}
+
+/**
+ * Start drag resizing columns.
+ * @param {PointerEvent} e
+ */
+function startPanelResize(e) {
+  if (!els.appShell || !els.panelResizeHandle || isMobileLayout()) return;
+
+  e.preventDefault();
+  panelResizeStartClientX = e.clientX;
+  panelResizeStartLeftWidth = getCurrentLeftPanelWidth();
+
+  try {
+    els.panelResizeHandle.setPointerCapture(e.pointerId);
+  } catch {
+    // Ignore if pointer capture is unavailable.
+  }
+
+  isResizingPanels = true;
+  els.appShell.classList.add("is-resizing");
+  document.body.classList.add("is-resizing-panels");
+}
+
+/**
+ * Continue drag resizing columns.
+ * @param {PointerEvent} e
+ */
+function movePanelResize(e) {
+  if (!isResizingPanels || !els.appShell || isMobileLayout()) return;
+
+  const left = panelResizeStartLeftWidth + (e.clientX - panelResizeStartClientX);
+  setLeftPanelWidth(left, { persist: false });
+}
+
+/**
+ * Finish drag resizing columns.
+ */
+function stopPanelResize() {
+  if (!isResizingPanels || !els.appShell) return;
+
+  isResizingPanels = false;
+  panelResizeStartClientX = 0;
+  panelResizeStartLeftWidth = 0;
+  els.appShell.classList.remove("is-resizing");
+  document.body.classList.remove("is-resizing-panels");
+
+  const current = getCurrentLeftPanelWidth();
+  setLeftPanelWidth(current, { persist: true });
+}
+
+/**
+ * Restore persisted panel split on desktop.
+ */
+function restorePanelSplit() {
+  if (!els.appShell || !els.panelResizeHandle) return;
+
+  if (isMobileLayout()) {
+    els.appShell.style.removeProperty("--panel-left-width");
+    return;
+  }
+
+  let restored = NaN;
+  try {
+    restored = Number.parseFloat(localStorage.getItem(PANEL_SPLIT_STORAGE_KEY) || "");
+  } catch {
+    restored = NaN;
+  }
+
+  if (Number.isFinite(restored)) {
+    setLeftPanelWidth(restored, { persist: false });
+  } else {
+    setLeftPanelWidth(DEFAULT_LEFT_PANEL_WIDTH, { persist: false });
+  }
 }
 
 /**
@@ -936,8 +1105,10 @@ function resetUI() {
     badgeFlashTimer = null;
   }
 
-  els.formatBadge.textContent = "-";
-  els.statsBadge.textContent = "-";
+  els.formatBadge.textContent = "";
+  els.statsBadge.textContent = "";
+  els.formatBadge.hidden = true;
+  els.statsBadge.hidden = true;
 
   els.btnDownload.disabled = true;
   els.btnCopy.disabled = true;
@@ -991,12 +1162,14 @@ async function handleFile(file) {
     }
 
     state.iconByName = buildIconMap(json, state.format);
+    els.formatBadge.hidden = false;
     els.formatBadge.textContent = `IcoMoon ${state.format}`;
 
     state.rawNames = extractNames(json, state.format);
     state.finalNames = buildFinalList(state.rawNames, els.uniqueSort.checked);
 
     const statsRaw = computeStats(state.rawNames);
+    els.statsBadge.hidden = false;
     els.statsBadge.textContent = `Total: ${statsRaw.total} | Unique: ${statsRaw.unique} | Duplicates: ${statsRaw.duplicates}`;
 
     els.btnDownload.disabled = state.finalNames.length === 0;
@@ -1014,6 +1187,40 @@ els.limitInput.value = String(DEFAULT_PREVIEW_LIMIT);
 applyTheme(resolveInitialTheme(), { persist: false, rerenderPreview: false });
 setAccordionExpanded(els.jsonAccordion, true);
 setAccordionExpanded(els.previewAccordion, true);
+restorePanelSplit();
+
+if (els.panelResizeHandle) {
+  els.panelResizeHandle.addEventListener("pointerdown", startPanelResize);
+  els.panelResizeHandle.addEventListener("keydown", (e) => {
+    if (isMobileLayout()) return;
+
+    const step = e.shiftKey ? 48 : 16;
+    const current = getCurrentLeftPanelWidth();
+
+    if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      setLeftPanelWidth(current - step);
+      return;
+    }
+
+    if (e.key === "ArrowRight") {
+      e.preventDefault();
+      setLeftPanelWidth(current + step);
+    }
+  });
+}
+
+window.addEventListener("pointermove", movePanelResize);
+window.addEventListener("pointerup", stopPanelResize);
+window.addEventListener("blur", stopPanelResize);
+window.addEventListener("resize", () => {
+  if (isMobileLayout()) {
+    stopPanelResize();
+    if (els.appShell) els.appShell.style.removeProperty("--panel-left-width");
+    return;
+  }
+  restorePanelSplit();
+});
 
 els.dropZone.addEventListener("click", () => {
   if (state.jsonData) return;
@@ -1064,8 +1271,7 @@ els.previewAccordionToggle.addEventListener("click", () => {
 });
 
 els.btnResetFilters.addEventListener("click", resetFilters);
-els.btnRemoveJson.addEventListener("click", (e) => {
-  e.stopPropagation();
+els.btnRemoveJson.addEventListener("click", () => {
   removeCurrentJson();
 });
 els.errorPopupClose.addEventListener("click", hideErrorPopup);

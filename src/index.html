@@ -32,10 +32,15 @@
         </header>
 
         <div class="card card-meta">
-          <div class="row">
-            <span id="fileBadge" class="badge badge-soft">No file</span>
-            <span id="formatBadge" class="badge">-</span>
-            <span id="statsBadge" class="badge">-</span>
+          <div class="row row-between row-no-wrap">
+            <div class="row row-tight meta-badges">
+              <span id="fileBadge" class="badge badge-soft">No file</span>
+              <span id="formatBadge" class="badge" hidden></span>
+              <span id="statsBadge" class="badge" hidden></span>
+            </div>
+            <button id="btnRemoveJson" type="button" class="btn-ghost btn-remove-json" hidden disabled>
+              Remove JSON
+            </button>
           </div>
         </div>
 
@@ -55,9 +60,6 @@
             <div id="jsonAccordionContent" class="mobile-accordion-content">
               <div class="row">
                 <div class="drop" id="dropZone" role="button" tabindex="0" aria-label="Drag or choose JSON file">
-                  <button id="btnRemoveJson" type="button" class="btn-ghost btn-remove-json-preview" hidden disabled>
-                    Remove JSON
-                  </button>
                   <div id="dropEmptyState">
                     <strong>Drag JSON here</strong> or click to choose
                     <div class="muted">e.g. <code>selection.json</code> (V1) / export (V2)</div>
@@ -70,19 +72,16 @@
           </div>
         </div>
 
-        <div class="card card-details">
-          <div class="row">
-            <label class="row row-tight">
-              <span class="muted">Format</span>
-              <select id="downloadFormat">
-                <option value="xlsx" selected>XLSX</option>
-                <option value="csv">CSV</option>
-              </select>
-            </label>
-            <button id="btnDownload" type="button" class="btn-primary" disabled>Download</button>
-          </div>
-        </div>
       </section>
+
+      <div
+        id="panelResizeHandle"
+        class="panel-resizer"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize left and right panels"
+        tabindex="0"
+      ></div>
 
       <section class="panel panel-right">
         <div class="card card-preview">
@@ -137,6 +136,19 @@
                 </table>
               </div>
             </div>
+          </div>
+        </div>
+
+        <div class="card card-details">
+          <div class="row">
+            <label class="row row-tight select-field">
+              <span class="muted">Format</span>
+              <select id="downloadFormat">
+                <option value="xlsx" selected>XLSX</option>
+                <option value="csv">CSV</option>
+              </select>
+            </label>
+            <button id="btnDownload" type="button" class="btn-primary" disabled>Download</button>
           </div>
         </div>
       </section>
