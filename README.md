@@ -1,6 +1,6 @@
 # IcoMoon JSON -> CSV / XLSX
 
-Offline web app to parse IcoMoon JSON files and export icon names to `CSV` or `XLSX`.
+Web app to parse IcoMoon JSON files and export icon names to `CSV` or `XLSX`.
 
 ## What this app does
 
@@ -17,7 +17,7 @@ Offline web app to parse IcoMoon JSON files and export icon names to `CSV` or `X
   - Download as `CSV` or `XLSX`
 - Includes a JSON preview panel, light/dark theme switch, and responsive layout.
 
-## Local-first / offline
+## Build output
 
 - No CDN dependencies are used in runtime output.
 - Build output is a single self-contained HTML file:
@@ -40,7 +40,7 @@ npm start
 
 Then open:
 
-- `http://localhost:3000`
+- `http://127.0.0.1:5179`
 
 ## Scripts
 
