@@ -826,6 +826,10 @@ th {
   white-space: nowrap;
 }
 
+.base64-cell {
+  white-space: nowrap;
+}
+
 .preview-copy-btn {
   padding: 0;
   border: 0;
@@ -845,6 +849,20 @@ th {
 .preview-copy-btn:focus-visible {
   outline: 2px solid var(--json-focus);
   outline-offset: 2px;
+}
+
+.preview-copy-btn-compact {
+  padding: 3px 8px;
+  border: 1px solid var(--button-border);
+  background: var(--btn-ghost-bg);
+  border-radius: 999px;
+  font-size: 11px;
+  text-transform: lowercase;
+}
+
+.preview-copy-btn-compact:hover:not(:disabled) {
+  border-color: var(--button-hover-border);
+  text-decoration: none;
 }
 
 .scroll {

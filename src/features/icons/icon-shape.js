@@ -418,3 +418,21 @@ export function createIconSvg(shape) {
 
   return svg;
 }
+
+/**
+ * Render icon shape into a base64 SVG data URL.
+ * @param {{viewBox:string, paths:{d:string, fill?:string, stroke?:string, strokeWidth?:string, strokeLinecap?:string, strokeLinejoin?:string, transform?:string}[]}} shape
+ * @returns {string}
+ */
+export function createIconSvgBase64Url(shape) {
+  const svg = createIconSvg(shape);
+  const markup = new XMLSerializer().serializeToString(svg);
+  const utf8 = new TextEncoder().encode(markup);
+
+  let binary = "";
+  utf8.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+
+  return `data:image/svg+xml;base64,${btoa(binary)}`;
+}

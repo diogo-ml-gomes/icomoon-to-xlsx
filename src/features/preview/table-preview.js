@@ -26,6 +26,7 @@ import { escapeHtml, highlightMatch, normalizeSearchText } from "../../helpers/t
  *   onRowSelect?: (iconName: string|null) => void,
  *   onUnicodeCopy?: (unicode: string, iconName: string) => void | Promise<void>,
  *   onNameCopy?: (name: string) => void | Promise<void>,
+ *   onBase64UrlCopy?: (iconName: string) => void | Promise<void>,
  *   onPreviewChange?: (details: { filteredNames:string[], query:string, selectedIconName:string|null }) => void,
  * }} options
  */
@@ -46,6 +47,7 @@ export function createTablePreviewController(options) {
     onRowSelect,
     onUnicodeCopy,
     onNameCopy,
+    onBase64UrlCopy,
     onPreviewChange,
   } = options;
 
@@ -126,7 +128,7 @@ export function createTablePreviewController(options) {
    */
   function getCopyButton(target) {
     if (!(target instanceof Element)) return null;
-    const button = target.closest("button[data-copy-value]");
+    const button = target.closest("button[data-copy-kind]");
     return button instanceof HTMLButtonElement ? button : null;
   }
 
@@ -151,7 +153,7 @@ export function createTablePreviewController(options) {
   function renderPreview(rows, query) {
     if (!rows.length) {
       const msg = query ? "No results for this search." : "No data.";
-      previewBody.innerHTML = `<tr><td colspan="3" class="muted">${msg}</td></tr>`;
+      previewBody.innerHTML = `<tr><td colspan="4" class="muted">${msg}</td></tr>`;
       return;
     }
 
@@ -169,6 +171,7 @@ export function createTablePreviewController(options) {
               ? `<button type="button" class="preview-copy-btn" data-copy-value="${escapeHtml(row.unicode)}" data-copy-kind="unicode" data-icon-name="${escapeHtml(row.name)}" aria-label="Copy unicode CSS for ${escapeHtml(row.name)}">${escapeHtml(row.unicode)}</button>`
               : "-"
           }</td>` +
+          `<td class="base64-cell"><button type="button" class="preview-copy-btn preview-copy-btn-compact" data-copy-kind="base64-url" data-icon-name="${escapeHtml(row.name)}" aria-label="Copy SVG base64 URL for ${escapeHtml(row.name)}">copy</button></td>` +
           "</tr>"
         );
       })
@@ -256,6 +259,8 @@ export function createTablePreviewController(options) {
           await onNameCopy?.(value);
         } else if (value && kind === "unicode") {
           await onUnicodeCopy?.(value, iconName);
+        } else if (iconName && kind === "base64-url") {
+          await onBase64UrlCopy?.(iconName);
         }
         return;
       }

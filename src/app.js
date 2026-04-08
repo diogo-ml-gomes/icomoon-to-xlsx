@@ -3,7 +3,7 @@ import JSONFormatterModule from "json-formatter-js";
 import { buildFinalList } from "./features/icons/icon-utils.js";
 import { debounce } from "./helpers/text-utils.js";
 import { getSelectedDownloadFormat, normalizeDownloadFileName } from "./helpers/download-name.js";
-import { createIconSvg } from "./features/icons/icon-shape.js";
+import { createIconSvg, createIconSvgBase64Url } from "./features/icons/icon-shape.js";
 import { initPanelResizer } from "./features/layout/panel-resizer.js";
 import { createTablePreviewController } from "./features/preview/table-preview.js";
 import { createDropJsonPreviewController } from "./features/dropzone/json-preview.js";
@@ -138,6 +138,17 @@ const previewController = createTablePreviewController({
       toastController.show(`Copied to clipboard: ${name}`);
     } catch {
       errorPopupController.show("Could not copy name to clipboard in this browser.", "Clipboard error");
+    }
+  },
+  onBase64UrlCopy: async (iconName) => {
+    const shape = state.iconByName.get(iconName);
+    if (!shape) return;
+
+    try {
+      await copyToClipboard(createIconSvgBase64Url(shape));
+      toastController.show(`Copied to clipboard: ${iconName} base64 URL`);
+    } catch {
+      errorPopupController.show("Could not copy SVG base64 URL to clipboard in this browser.", "Clipboard error");
     }
   },
 });
