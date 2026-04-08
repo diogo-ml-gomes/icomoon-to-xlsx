@@ -25,6 +25,8 @@ import { escapeHtml, highlightMatch } from "../../helpers/text-utils.js";
  *   createIconSvg: (shape: {viewBox:string, paths:{d:string, fill?:string, stroke?:string, strokeWidth?:string, strokeLinecap?:string, strokeLinejoin?:string, transform?:string}[]}) => SVGSVGElement,
  *   onRowSelect?: (iconName: string|null) => void,
  *   onUnicodeCopy?: (unicode: string, iconName: string) => void | Promise<void>,
+ *   onNameCopy?: (name: string) => void | Promise<void>,
+ *   onPreviewChange?: (details: { filteredNames:string[], query:string, selectedIconName:string|null }) => void,
  * }} options
  */
 export function createTablePreviewController(options) {
@@ -43,6 +45,8 @@ export function createTablePreviewController(options) {
     createIconSvg,
     onRowSelect,
     onUnicodeCopy,
+    onNameCopy,
+    onPreviewChange,
   } = options;
 
   let hoveredIconName = "";
@@ -120,9 +124,9 @@ export function createTablePreviewController(options) {
    * @param {EventTarget|null} target
    * @returns {HTMLButtonElement|null}
    */
-  function getUnicodeCopyButton(target) {
+  function getCopyButton(target) {
     if (!(target instanceof Element)) return null;
-    const button = target.closest("button[data-copy-unicode]");
+    const button = target.closest("button[data-copy-value]");
     return button instanceof HTMLButtonElement ? button : null;
   }
 
@@ -157,10 +161,12 @@ export function createTablePreviewController(options) {
         return (
           `<tr data-icon-name="${escapeHtml(row.name)}" tabindex="0" role="button" aria-pressed="${isActive ? "true" : "false"}" class="${isActive ? "is-active" : ""}">` +
           `<td>${row.index}</td>` +
-          `<td>${highlightMatch(row.name, query)}</td>` +
+          `<td>${
+            `<button type="button" class="preview-copy-btn" data-copy-value="${escapeHtml(row.name)}" data-copy-kind="name" aria-label="Copy name for ${escapeHtml(row.name)}">${highlightMatch(row.name, query)}</button>`
+          }</td>` +
           `<td class="unicode-cell">${
             row.unicode
-              ? `<button type="button" class="unicode-copy-btn" data-copy-unicode="${escapeHtml(row.unicode)}" data-icon-name="${escapeHtml(row.name)}" aria-label="Copy unicode CSS for ${escapeHtml(row.name)}">${escapeHtml(row.unicode)}</button>`
+              ? `<button type="button" class="preview-copy-btn" data-copy-value="${escapeHtml(row.unicode)}" data-copy-kind="unicode" data-icon-name="${escapeHtml(row.name)}" aria-label="Copy unicode CSS for ${escapeHtml(row.name)}">${escapeHtml(row.unicode)}</button>`
               : "-"
           }</td>` +
           "</tr>"
@@ -187,6 +193,11 @@ export function createTablePreviewController(options) {
     }
 
     state.filteredNames = rows.map((row) => row.name);
+    onPreviewChange?.({
+      filteredNames: [...state.filteredNames],
+      query,
+      selectedIconName: selectedIconName || null,
+    });
 
     const shown = rows.slice(0, limit);
     const shownTxt = shown.length;
@@ -233,15 +244,18 @@ export function createTablePreviewController(options) {
     window.addEventListener("blur", hideIconHoverPreview);
 
     previewBody.addEventListener("click", async (e) => {
-      const copyButton = getUnicodeCopyButton(e.target);
+      const copyButton = getCopyButton(e.target);
       if (copyButton) {
         e.preventDefault();
         e.stopPropagation();
 
-        const unicode = copyButton.dataset.copyUnicode || "";
+        const value = copyButton.dataset.copyValue || "";
+        const kind = copyButton.dataset.copyKind || "";
         const iconName = copyButton.dataset.iconName || "";
-        if (unicode) {
-          await onUnicodeCopy?.(unicode, iconName);
+        if (value && kind === "name") {
+          await onNameCopy?.(value);
+        } else if (value && kind === "unicode") {
+          await onUnicodeCopy?.(value, iconName);
         }
         return;
       }

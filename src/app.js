@@ -48,6 +48,48 @@ const toastController = createToastController({
   toast: els.appToast,
 });
 
+let selectedPreviewIconName = "";
+
+/**
+ * @param {string[]} names
+ * @returns {string[]}
+ */
+function resolveIconPathsByNames(names) {
+  const paths = new Set();
+
+  names.forEach((name) => {
+    const meta = state.iconMetaByName.get(name);
+    meta?.paths.forEach((path) => paths.add(path));
+  });
+
+  return Array.from(paths);
+}
+
+/**
+ * @param {{ filteredNames:string[], query:string, selectedIconName:string|null }} details
+ */
+function syncJsonPreviewFilter(details) {
+  const activeSelectedName = details.selectedIconName || selectedPreviewIconName;
+
+  if (activeSelectedName && (!details.query || details.filteredNames.includes(activeSelectedName))) {
+    const selectedPaths = resolveIconPathsByNames([activeSelectedName]);
+    if (selectedPaths.length) {
+      dropPreviewController.focusPaths(selectedPaths, { expand: true });
+      return;
+    }
+  }
+
+  if (details.query) {
+    const filteredPaths = resolveIconPathsByNames(details.filteredNames);
+    if (filteredPaths.length) {
+      dropPreviewController.focusPaths(filteredPaths, { expand: false });
+      return;
+    }
+  }
+
+  dropPreviewController.clearFocus();
+}
+
 const dropPreviewController = createDropJsonPreviewController({
   dropZone: els.dropZone,
   dropEmptyState: els.dropEmptyState,
@@ -72,14 +114,15 @@ const previewController = createTablePreviewController({
   getState: () => state,
   createIconSvg,
   onRowSelect: (iconName) => {
-    const focusedPaths = iconName ? state.iconMetaByName.get(iconName)?.paths || [] : [];
-
-    if (focusedPaths.length) {
-      dropPreviewController.focusPaths(focusedPaths);
-      return;
-    }
-
-    dropPreviewController.clearFocus();
+    selectedPreviewIconName = iconName || "";
+    syncJsonPreviewFilter({
+      filteredNames: [...state.filteredNames],
+      query: (els.searchInput.value || "").trim().toLowerCase(),
+      selectedIconName: iconName,
+    });
+  },
+  onPreviewChange: (details) => {
+    syncJsonPreviewFilter(details);
   },
   onUnicodeCopy: async (unicode, iconName) => {
     try {
@@ -87,6 +130,14 @@ const previewController = createTablePreviewController({
       toastController.show(`Copied to clipboard: ${iconName ? `${iconName} (${unicode})` : unicode}`);
     } catch {
       errorPopupController.show("Could not copy unicode to clipboard in this browser.", "Clipboard error");
+    }
+  },
+  onNameCopy: async (name) => {
+    try {
+      await copyToClipboard(name);
+      toastController.show(`Copied to clipboard: ${name}`);
+    } catch {
+      errorPopupController.show("Could not copy name to clipboard in this browser.", "Clipboard error");
     }
   },
 });

@@ -826,7 +826,7 @@ th {
   white-space: nowrap;
 }
 
-.unicode-copy-btn {
+.preview-copy-btn {
   padding: 0;
   border: 0;
   border-radius: 6px;
@@ -837,12 +837,12 @@ th {
   cursor: copy;
 }
 
-.unicode-copy-btn:hover:not(:disabled) {
+.preview-copy-btn:hover:not(:disabled) {
   box-shadow: none;
   text-decoration: underline;
 }
 
-.unicode-copy-btn:focus-visible {
+.preview-copy-btn:focus-visible {
   outline: 2px solid var(--json-focus);
   outline-offset: 2px;
 }

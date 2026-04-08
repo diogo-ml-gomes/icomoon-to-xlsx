@@ -20,6 +20,7 @@ export function createDropJsonPreviewController(options) {
     getTheme,
   } = options;
   let focusedPaths = [];
+  let shouldExpandFocusedPaths = true;
 
   /**
    * @param {string} path
@@ -260,9 +261,11 @@ export function createDropJsonPreviewController(options) {
       row.classList.add("is-focus-hidden");
     });
 
-    if (expandFocusTargets(targetSegments)) {
-      window.requestAnimationFrame(() => applyFocus());
-      return;
+    if (shouldExpandFocusedPaths) {
+      if (expandFocusTargets(targetSegments)) {
+        window.requestAnimationFrame(() => applyFocus());
+        return;
+      }
     }
 
     applyArrayRangeVisibility(targetSegments);
@@ -316,15 +319,18 @@ export function createDropJsonPreviewController(options) {
 
   /**
    * @param {string[]} paths
+   * @param {{ expand?: boolean }} [options]
    */
-  function focusPaths(paths) {
+  function focusPaths(paths, options = {}) {
     focusedPaths = Array.isArray(paths) ? [...paths] : [];
+    shouldExpandFocusedPaths = options.expand !== false;
     setAccordionExpanded(jsonAccordion, true);
     applyFocus();
   }
 
   function clearFocus() {
     focusedPaths = [];
+    shouldExpandFocusedPaths = true;
     applyFocus();
   }
 
