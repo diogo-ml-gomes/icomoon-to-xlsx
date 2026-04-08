@@ -10,6 +10,7 @@ import { createDropJsonPreviewController } from "./features/dropzone/json-previe
 import { copyToClipboard, downloadCsv, downloadXlsx } from "./features/export/data-export.js";
 import { createErrorPopupController } from "./features/ui/error-popup.js";
 import { createFileBadgeController } from "./features/ui/file-badge.js";
+import { createToastController } from "./features/ui/toast.js";
 import { setAccordionExpanded, toggleAccordion } from "./features/ui/accordion.js";
 import { createThemeController } from "./features/ui/theme.js";
 import { createFileSession } from "./features/files/file-session.js";
@@ -43,6 +44,20 @@ const fileBadgeController = createFileBadgeController(
   () => state.fileBaseName,
 );
 
+const toastController = createToastController({
+  toast: els.appToast,
+});
+
+const dropPreviewController = createDropJsonPreviewController({
+  dropZone: els.dropZone,
+  dropEmptyState: els.dropEmptyState,
+  dropJsonPreview: els.dropJsonPreview,
+  jsonAccordion: els.jsonAccordion,
+  formatterClass: JSONFormatter,
+  setAccordionExpanded,
+  getTheme: () => state.uiTheme,
+});
+
 const previewController = createTablePreviewController({
   previewScroll: els.previewScroll,
   previewBody: els.previewBody,
@@ -56,16 +71,24 @@ const previewController = createTablePreviewController({
   defaultLimit: DEFAULT_PREVIEW_LIMIT,
   getState: () => state,
   createIconSvg,
-});
+  onRowSelect: (iconName) => {
+    const focusedPaths = iconName ? state.iconMetaByName.get(iconName)?.paths || [] : [];
 
-const dropPreviewController = createDropJsonPreviewController({
-  dropZone: els.dropZone,
-  dropEmptyState: els.dropEmptyState,
-  dropJsonPreview: els.dropJsonPreview,
-  jsonAccordion: els.jsonAccordion,
-  formatterClass: JSONFormatter,
-  setAccordionExpanded,
-  getTheme: () => state.uiTheme,
+    if (focusedPaths.length) {
+      dropPreviewController.focusPaths(focusedPaths);
+      return;
+    }
+
+    dropPreviewController.clearFocus();
+  },
+  onUnicodeCopy: async (unicode, iconName) => {
+    try {
+      await copyToClipboard(unicode);
+      toastController.show(`Copied to clipboard: ${iconName ? `${iconName} (${unicode})` : unicode}`);
+    } catch {
+      errorPopupController.show("Could not copy unicode to clipboard in this browser.", "Clipboard error");
+    }
+  },
 });
 
 const themeController = createThemeController({
@@ -180,7 +203,7 @@ els.btnCopy.addEventListener("click", async () => {
 
   try {
     await copyToClipboard(state.filteredNames.join("\n"));
-    fileBadgeController.flash(`Copied: ${state.filteredNames.length} names`);
+    toastController.show(`Copied to clipboard: ${state.filteredNames.length} names`);
   } catch {
     errorPopupController.show("Could not copy to clipboard in this browser.", "Clipboard error");
   }

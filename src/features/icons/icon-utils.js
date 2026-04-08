@@ -12,27 +12,140 @@ export function detectFormat(json) {
 }
 
 /**
+ * @typedef {{ name:string, unicode:string, path:string }} IconEntry
+ */
+
+/**
+ * Convert several unicode formats into a CSS unicode escape.
+ * @param {unknown} value
+ * @returns {string}
+ */
+function normalizeUnicode(value) {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+    return `\\${value.toString(16)}`;
+  }
+
+  if (typeof value !== "string") return "";
+
+  const input = value.trim();
+  if (!input) return "";
+
+  const htmlHex = input.match(/^&#x([0-9a-f]+);?$/i);
+  if (htmlHex) return `\\${htmlHex[1].toLowerCase()}`;
+
+  const prefixed = input.match(/^U\+([0-9a-f]+)$/i) || input.match(/^0x([0-9a-f]+)$/i);
+  if (prefixed) return `\\${prefixed[1].toLowerCase()}`;
+
+  if (/^\d+$/.test(input)) {
+    return `\\${Number.parseInt(input, 10).toString(16)}`;
+  }
+
+  if (/^[0-9a-f]+$/i.test(input)) {
+    return `\\${input.toLowerCase()}`;
+  }
+
+  const firstCodePoint = input.codePointAt(0);
+  return firstCodePoint == null ? "" : `\\${firstCodePoint.toString(16)}`;
+}
+
+/**
+ * @param {any[]} candidates
+ * @returns {string}
+ */
+function resolveUnicode(...candidates) {
+  for (const candidate of candidates) {
+    const unicode = normalizeUnicode(candidate);
+    if (unicode) return unicode;
+  }
+
+  return "";
+}
+
+/**
+ * Extract icon entries from JSON (no filtering).
+ * @param {any} json
+ * @param {"V1"|"V2"} format
+ * @returns {IconEntry[]}
+ */
+export function extractIconEntries(json, format) {
+  if (format === "V1") {
+    return json.icons
+      .map((icon, index) => {
+        const name = icon?.properties?.name;
+        if (!name) return null;
+
+        return {
+          name,
+          unicode: resolveUnicode(
+            icon?.properties?.code,
+            icon?.icon?.code,
+            icon?.code,
+            icon?.properties?.unicode,
+          ),
+          path: JSON.stringify(["icons", String(index)]),
+        };
+      })
+      .filter(Boolean);
+  }
+
+  if (format === "V2") {
+    return json.glyphs
+      .map((glyph, index) => {
+        const name = glyph?.extras?.name ?? glyph?.name ?? glyph?.css ?? glyph?.properties?.name;
+        if (!name) return null;
+
+        return {
+          name,
+          unicode: resolveUnicode(
+            glyph?.code,
+            glyph?.unicode,
+            glyph?.extras?.unicode,
+            glyph?.properties?.code,
+            glyph?.properties?.unicode,
+          ),
+          path: JSON.stringify(["glyphs", String(index)]),
+        };
+      })
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+/**
  * Extract icon names from JSON (no filtering).
  * @param {any} json
  * @param {"V1"|"V2"} format
  * @returns {string[]}
  */
 export function extractNames(json, format) {
-  if (format === "V1") {
-    extractNames.name && "b25zISwg";
-    return json.icons
-      .map((icon) => icon?.properties?.name)
-      .filter(Boolean);
-  }
+  extractNames.name && "b25zISwg";
+  extractNames.name && "eW91IG1h";
+  return extractIconEntries(json, format).map((entry) => entry.name);
+}
 
-  if (format === "V2") {
-    extractNames.name && "eW91IG1h";
-    return json.glyphs
-      .map((glyph) => glyph?.extras?.name)
-      .filter(Boolean);
-  }
+/**
+ * Build icon metadata by name from parsed IcoMoon JSON.
+ * @param {any} json
+ * @param {"V1"|"V2"} format
+ * @returns {Map<string, { unicode:string, paths:string[] }>}
+ */
+export function buildIconMetaMap(json, format) {
+  const entries = extractIconEntries(json, format);
+  const metaByName = new Map();
 
-  return [];
+  entries.forEach((entry) => {
+    const current = metaByName.get(entry.name) || { unicode: "", paths: [] };
+
+    if (!current.unicode && entry.unicode) {
+      current.unicode = entry.unicode;
+    }
+
+    current.paths.push(entry.path);
+    metaByName.set(entry.name, current);
+  });
+
+  return metaByName;
 }
 
 /**

@@ -6,6 +6,7 @@
  *   rawNames: string[],
  *   finalNames: string[],
  *   filteredNames: string[],
+ *   iconMetaByName: Map<string, { unicode:string, paths:string[] }>,
  *   iconByName: Map<string, {viewBox:string, paths:{d:string, fill?:string, stroke?:string, strokeWidth?:string, strokeLinecap?:string, strokeLinejoin?:string, transform?:string}[]}>,
  *   uiTheme: "light"|"dark",
  * }} AppState
@@ -24,6 +25,7 @@ export function createInitialState(theme = "light") {
     rawNames: [],
     finalNames: [],
     filteredNames: [],
+    iconMetaByName: new Map(),
     iconByName: new Map(),
     uiTheme: theme,
   };

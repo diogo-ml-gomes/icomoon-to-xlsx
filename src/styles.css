@@ -31,12 +31,16 @@
   --code-bg: #f0f3f8;
   --table-row-even: #fafcff;
   --table-row-hover: #f0f6ff;
+  --table-row-active: #dfeaff;
   --table-head-bg: #ffffff;
   --scroll-border: #e8edf4;
   --json-scroll-track: #d7e1f0;
   --json-scroll-thumb: #9cb0cf;
   --json-scroll-thumb-hover: #8099bf;
   --json-row-hover: rgb(74 122 211 / 13%);
+  --json-focus-match-bg: rgb(15 94 247 / 16%);
+  --json-focus-match-border: rgb(15 94 247 / 26%);
+  --json-focus-context-bg: rgb(15 94 247 / 8%);
   --json-text: #1f2b3d;
   --json-key: #0f5ea8;
   --json-string: #1f7f47;
@@ -66,6 +70,9 @@
   --error-close: #7d2b35;
   --error-close-hover-bg: rgb(170 31 45 / 12%);
   --error-overlay: rgb(12 18 29 / 45%);
+  --toast-bg: rgb(17 31 56 / 94%);
+  --toast-border: rgb(15 94 247 / 38%);
+  --toast-text: #f7fbff;
 }
 
 :root[data-theme="dark"] {
@@ -101,12 +108,16 @@
   --code-bg: #1a2843;
   --table-row-even: #16243c;
   --table-row-hover: #213558;
+  --table-row-active: #29436f;
   --table-head-bg: #1b2a44;
   --scroll-border: #2a3d5f;
   --json-scroll-track: #0c1322;
   --json-scroll-thumb: #3f5781;
   --json-scroll-thumb-hover: #5d79a9;
   --json-row-hover: rgb(93 145 255 / 18%);
+  --json-focus-match-bg: rgb(79 141 255 / 22%);
+  --json-focus-match-border: rgb(127 177 255 / 30%);
+  --json-focus-context-bg: rgb(79 141 255 / 12%);
   --json-text: #dce7ff;
   --json-key: #78caff;
   --json-string: #9fe68c;
@@ -136,6 +147,9 @@
   --error-close: #ffd8df;
   --error-close-hover-bg: rgb(255 183 195 / 16%);
   --error-overlay: rgb(3 6 12 / 62%);
+  --toast-bg: rgb(8 17 34 / 94%);
+  --toast-border: rgb(127 177 255 / 34%);
+  --toast-text: #eef5ff;
 }
 
 * {
@@ -774,6 +788,21 @@ tbody tr:hover {
   background: var(--table-row-hover);
 }
 
+tbody tr[data-icon-name] {
+  cursor: pointer;
+}
+
+tbody tr[data-icon-name]:focus-visible {
+  outline: 2px solid var(--json-focus);
+  outline-offset: -2px;
+}
+
+tbody tr.is-active,
+tbody tr.is-active:nth-child(even),
+tbody tr.is-active:hover {
+  background: var(--table-row-active);
+}
+
 th {
   position: sticky;
   top: 0;
@@ -783,6 +812,37 @@ th {
 
 .w-90 {
   width: 84px;
+}
+
+.w-120 {
+  width: 130px;
+}
+
+.unicode-cell {
+  font-family: "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.unicode-copy-btn {
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  cursor: copy;
+}
+
+.unicode-copy-btn:hover:not(:disabled) {
+  box-shadow: none;
+  text-decoration: underline;
+}
+
+.unicode-copy-btn:focus-visible {
+  outline: 2px solid var(--json-focus);
+  outline-offset: 2px;
 }
 
 .scroll {
@@ -892,6 +952,50 @@ mark {
   box-shadow: none;
 }
 
+.app-toast-stack {
+  position: fixed;
+  right: 18px;
+  top: 18px;
+  z-index: 140;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.app-toast-stack[hidden] {
+  display: none;
+}
+
+.app-toast {
+  min-width: 220px;
+  max-width: min(420px, calc(100vw - 36px));
+  padding: 11px 14px;
+  border: 1px solid var(--toast-border);
+  border-radius: 12px;
+  background: var(--toast-bg);
+  color: var(--toast-text);
+  box-shadow: 0 16px 32px rgb(0 0 0 / 22%);
+  font-size: 13px;
+  line-height: 1.35;
+  opacity: 0;
+  transform: translate3d(calc(100% + 32px), 0, 0) scale(0.94);
+  filter: blur(8px);
+  transition:
+    opacity 200ms ease,
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 240ms ease;
+  pointer-events: none;
+  will-change: transform, opacity, filter;
+}
+
+.app-toast.is-visible {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+  filter: blur(0);
+}
+
 code {
   background: var(--code-bg);
   padding: 1px 6px;
@@ -915,6 +1019,19 @@ code {
 
 .drop-json-preview .json-formatter-row:hover > :first-child {
   background: var(--json-row-hover);
+}
+
+.drop-json-preview.has-focus-filter .json-formatter-row.is-focus-hidden {
+  display: none;
+}
+
+.drop-json-preview.has-focus-filter .json-formatter-row.is-focus-context > :first-child {
+  background: var(--json-focus-context-bg);
+}
+
+.drop-json-preview.has-focus-filter .json-formatter-row.is-focus-match > :first-child {
+  background: var(--json-focus-match-bg);
+  box-shadow: inset 0 0 0 1px var(--json-focus-match-border);
 }
 
 .drop-json-preview .json-formatter-row .json-formatter-row {

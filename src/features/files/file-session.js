@@ -1,4 +1,5 @@
 import {
+  buildIconMetaMap,
   buildFinalList,
   computeStats,
   detectFormat,
@@ -15,6 +16,7 @@ import { getSelectedDownloadFormat, normalizeDownloadFileName } from "../../help
  *   rawNames: string[],
  *   finalNames: string[],
  *   filteredNames: string[],
+ *   iconMetaByName: Map<string, { unicode:string, paths:string[] }>,
  *   iconByName: Map<string, {viewBox:string, paths:{d:string, fill?:string, stroke?:string, strokeWidth?:string, strokeLinecap?:string, strokeLinejoin?:string, transform?:string}[]}>,
  *   uiTheme: "light"|"dark",
  * }} AppState
@@ -35,8 +37,8 @@ import { getSelectedDownloadFormat, normalizeDownloadFileName } from "../../help
  *     uniqueSort: HTMLInputElement,
  *   },
  *   resetState: (state: AppState, theme: "light"|"dark") => void,
- *   previewController: { updatePreview: () => void, showEmpty: () => void, hideIconHoverPreview: () => void },
- *   dropPreviewController: { render: (jsonData: any|null) => void },
+ *   previewController: { updatePreview: () => void, showEmpty: () => void, hideIconHoverPreview: () => void, clearSelection: () => void },
+ *   dropPreviewController: { render: (jsonData: any|null) => void, clearFocus: () => void },
  *   errorPopupController: { hide: () => void, show: (message: string, title?: string) => void },
  *   fileBadgeController: { restore: () => void, clearFlash: () => void },
  * }} options
@@ -73,7 +75,9 @@ export function createFileSession(options) {
   function resetUI() {
     const currentTheme = state.uiTheme;
 
+    previewController.clearSelection();
     previewController.hideIconHoverPreview();
+    dropPreviewController.clearFocus();
     errorPopupController.hide();
     fileBadgeController.clearFlash();
 
@@ -137,6 +141,7 @@ export function createFileSession(options) {
       }
 
       state.iconByName = buildIconMap(json, state.format);
+      state.iconMetaByName = buildIconMetaMap(json, state.format);
       els.formatBadge.hidden = false;
       els.formatBadge.textContent = `IcoMoon ${state.format}`;
 

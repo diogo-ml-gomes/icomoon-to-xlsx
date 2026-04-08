@@ -4,6 +4,7 @@ import { escapeHtml, highlightMatch } from "../../helpers/text-utils.js";
  * @typedef {{
  *   finalNames: string[],
  *   filteredNames: string[],
+ *   iconMetaByName: Map<string, { unicode:string, paths:string[] }>,
  *   iconByName: Map<string, {viewBox:string, paths:{d:string, fill?:string, stroke?:string, strokeWidth?:string, strokeLinecap?:string, strokeLinejoin?:string, transform?:string}[]}>,
  * }} PreviewStateShape
  */
@@ -22,6 +23,8 @@ import { escapeHtml, highlightMatch } from "../../helpers/text-utils.js";
  *   defaultLimit: number,
  *   getState: () => PreviewStateShape,
  *   createIconSvg: (shape: {viewBox:string, paths:{d:string, fill?:string, stroke?:string, strokeWidth?:string, strokeLinecap?:string, strokeLinejoin?:string, transform?:string}[]}) => SVGSVGElement,
+ *   onRowSelect?: (iconName: string|null) => void,
+ *   onUnicodeCopy?: (unicode: string, iconName: string) => void | Promise<void>,
  * }} options
  */
 export function createTablePreviewController(options) {
@@ -38,9 +41,12 @@ export function createTablePreviewController(options) {
     defaultLimit,
     getState,
     createIconSvg,
+    onRowSelect,
+    onUnicodeCopy,
   } = options;
 
   let hoveredIconName = "";
+  let selectedIconName = "";
 
   function hideIconHoverPreview() {
     hoveredIconName = "";
@@ -111,18 +117,55 @@ export function createTablePreviewController(options) {
   }
 
   /**
-   * @param {{ index:number, name:string }[]} rows
+   * @param {EventTarget|null} target
+   * @returns {HTMLButtonElement|null}
+   */
+  function getUnicodeCopyButton(target) {
+    if (!(target instanceof Element)) return null;
+    const button = target.closest("button[data-copy-unicode]");
+    return button instanceof HTMLButtonElement ? button : null;
+  }
+
+  /**
+   * @param {string|null} iconName
+   */
+  function setSelectedIconName(iconName) {
+    selectedIconName = iconName || "";
+    onRowSelect?.(selectedIconName || null);
+
+    previewBody.querySelectorAll("tr[data-icon-name]").forEach((row) => {
+      const isActive = row.getAttribute("data-icon-name") === selectedIconName;
+      row.classList.toggle("is-active", isActive);
+      row.setAttribute("aria-pressed", String(isActive));
+    });
+  }
+
+  /**
+   * @param {{ index:number, name:string, unicode:string }[]} rows
    * @param {string} query
    */
   function renderPreview(rows, query) {
     if (!rows.length) {
       const msg = query ? "No results for this search." : "No data.";
-      previewBody.innerHTML = `<tr><td colspan="2" class="muted">${msg}</td></tr>`;
+      previewBody.innerHTML = `<tr><td colspan="3" class="muted">${msg}</td></tr>`;
       return;
     }
 
     previewBody.innerHTML = rows
-      .map((row) => `<tr data-icon-name="${escapeHtml(row.name)}"><td>${row.index}</td><td>${highlightMatch(row.name, query)}</td></tr>`)
+      .map((row) => {
+        const isActive = row.name === selectedIconName;
+        return (
+          `<tr data-icon-name="${escapeHtml(row.name)}" tabindex="0" role="button" aria-pressed="${isActive ? "true" : "false"}" class="${isActive ? "is-active" : ""}">` +
+          `<td>${row.index}</td>` +
+          `<td>${highlightMatch(row.name, query)}</td>` +
+          `<td class="unicode-cell">${
+            row.unicode
+              ? `<button type="button" class="unicode-copy-btn" data-copy-unicode="${escapeHtml(row.unicode)}" data-icon-name="${escapeHtml(row.name)}" aria-label="Copy unicode CSS for ${escapeHtml(row.name)}">${escapeHtml(row.unicode)}</button>`
+              : "-"
+          }</td>` +
+          "</tr>"
+        );
+      })
       .join("");
   }
 
@@ -133,7 +176,11 @@ export function createTablePreviewController(options) {
     const query = (searchInput.value || "").trim().toLowerCase();
     const limit = Math.max(1, Math.min(50000, Number(limitInput.value || defaultLimit)));
 
-    let rows = state.finalNames.map((name, idx) => ({ index: idx + 1, name: String(name) }));
+    let rows = state.finalNames.map((name, idx) => ({
+      index: idx + 1,
+      name: String(name),
+      unicode: state.iconMetaByName.get(String(name))?.unicode || "",
+    }));
 
     if (query) {
       rows = rows.filter((row) => row.name.toLowerCase().includes(query));
@@ -156,12 +203,17 @@ export function createTablePreviewController(options) {
   function resetFilters() {
     searchInput.value = "";
     limitInput.value = String(defaultLimit);
+    setSelectedIconName(null);
     updatePreview();
   }
 
   function showEmpty() {
     previewMeta.textContent = "-";
     renderPreview([], "");
+  }
+
+  function clearSelection() {
+    setSelectedIconName(null);
   }
 
   function bindHoverEvents() {
@@ -179,12 +231,43 @@ export function createTablePreviewController(options) {
 
     previewBody.addEventListener("mouseleave", hideIconHoverPreview);
     window.addEventListener("blur", hideIconHoverPreview);
+
+    previewBody.addEventListener("click", async (e) => {
+      const copyButton = getUnicodeCopyButton(e.target);
+      if (copyButton) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const unicode = copyButton.dataset.copyUnicode || "";
+        const iconName = copyButton.dataset.iconName || "";
+        if (unicode) {
+          await onUnicodeCopy?.(unicode, iconName);
+        }
+        return;
+      }
+
+      const iconName = getHoveredRowIconName(e.target);
+      if (!iconName) return;
+
+      setSelectedIconName(iconName === selectedIconName ? null : iconName);
+    });
+
+    previewBody.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+
+      const iconName = getHoveredRowIconName(e.target);
+      if (!iconName) return;
+
+      e.preventDefault();
+      setSelectedIconName(iconName === selectedIconName ? null : iconName);
+    });
   }
 
   return {
     updatePreview,
     resetFilters,
     showEmpty,
+    clearSelection,
     hideIconHoverPreview,
     bindHoverEvents,
   };

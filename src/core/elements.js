@@ -32,6 +32,7 @@ export function getElements() {
     errorPopupTitle: document.getElementById("errorPopupTitle"),
     errorPopupMessage: document.getElementById("errorPopupMessage"),
     errorPopupClose: document.getElementById("errorPopupClose"),
+    appToast: document.getElementById("appToast"),
 
     previewScroll: document.getElementById("previewScroll"),
     previewAccordion: document.getElementById("previewAccordion"),

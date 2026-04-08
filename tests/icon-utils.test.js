@@ -2,9 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  buildIconMetaMap,
   buildFinalList,
   computeStats,
   detectFormat,
+  extractIconEntries,
   extractNames,
   parseIcoMoon,
 } from "../src/features/icons/icon-utils.js";
@@ -46,6 +48,56 @@ test("extractNames: extracts only valid names in V1 and V2", () => {
 
   assert.deepEqual(extractNames(v1, "V1"), ["home", "settings"]);
   assert.deepEqual(extractNames(v2, "V2"), ["arrow-left", "arrow-right"]);
+});
+
+test("extractIconEntries: includes unicode and JSON path metadata", () => {
+  const v1 = {
+    IcoMoonType: "selection",
+    icons: [
+      { properties: { name: "home", code: 59648 } },
+      { properties: { name: "bell", unicode: "e901" } },
+    ],
+  };
+
+  const v2 = {
+    glyphs: [
+      { extras: { name: "arrow-left" }, code: 59650 },
+      { extras: { name: "arrow-right", unicode: "U+E903" } },
+    ],
+  };
+
+  assert.deepEqual(extractIconEntries(v1, "V1"), [
+    { name: "home", unicode: "\\e900", path: "[\"icons\",\"0\"]" },
+    { name: "bell", unicode: "\\e901", path: "[\"icons\",\"1\"]" },
+  ]);
+
+  assert.deepEqual(extractIconEntries(v2, "V2"), [
+    { name: "arrow-left", unicode: "\\e902", path: "[\"glyphs\",\"0\"]" },
+    { name: "arrow-right", unicode: "\\e903", path: "[\"glyphs\",\"1\"]" },
+  ]);
+});
+
+test("buildIconMetaMap: groups duplicate names and keeps all JSON paths", () => {
+  const input = {
+    IcoMoonType: "selection",
+    icons: [
+      { properties: { name: "home", code: 59648 } },
+      { properties: { name: "home", code: 59648 } },
+      { properties: { name: "settings", unicode: "e901" } },
+    ],
+  };
+
+  const meta = buildIconMetaMap(input, "V1");
+
+  assert.deepEqual(meta.get("home"), {
+    unicode: "\\e900",
+    paths: ["[\"icons\",\"0\"]", "[\"icons\",\"1\"]"],
+  });
+
+  assert.deepEqual(meta.get("settings"), {
+    unicode: "\\e901",
+    paths: ["[\"icons\",\"2\"]"],
+  });
 });
 
 test("buildFinalList: keeps order or applies unique+sort", () => {
