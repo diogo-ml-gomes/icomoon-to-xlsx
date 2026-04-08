@@ -145,7 +145,7 @@ const previewController = createTablePreviewController({
     if (!shape) return;
 
     try {
-      await copyToClipboard(createIconSvgBase64Url(shape));
+      await copyToClipboard(`"${createIconSvgBase64Url(shape)}"`);
       toastController.show(`Copied to clipboard: ${iconName} base64 URL`);
     } catch {
       errorPopupController.show("Could not copy SVG base64 URL to clipboard in this browser.", "Clipboard error");
