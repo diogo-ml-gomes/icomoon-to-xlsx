@@ -1,4 +1,4 @@
-import { escapeHtml, highlightMatch } from "../../helpers/text-utils.js";
+import { escapeHtml, highlightMatch, normalizeSearchText } from "../../helpers/text-utils.js";
 
 /**
  * @typedef {{
@@ -179,7 +179,7 @@ export function createTablePreviewController(options) {
     hideIconHoverPreview();
 
     const state = getState();
-    const query = (searchInput.value || "").trim().toLowerCase();
+    const query = normalizeSearchText((searchInput.value || "").trim());
     const limit = Math.max(1, Math.min(50000, Number(limitInput.value || defaultLimit)));
 
     let rows = state.finalNames.map((name, idx) => ({
@@ -189,7 +189,7 @@ export function createTablePreviewController(options) {
     }));
 
     if (query) {
-      rows = rows.filter((row) => row.name.toLowerCase().includes(query));
+      rows = rows.filter((row) => normalizeSearchText(row.name).includes(query));
     }
 
     state.filteredNames = rows.map((row) => row.name);
